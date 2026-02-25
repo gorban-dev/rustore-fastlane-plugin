@@ -38,15 +38,18 @@ module Fastlane
         end
 
         whats_new  = params[:whats_new]
+        moder_info = params[:moder_info]
         draft_meta = {}
-        draft_meta[:whatsNew] = whats_new if whats_new
+        draft_meta[:whatsNew]  = whats_new  if whats_new
+        draft_meta[:moderInfo] = moder_info if moder_info
 
         version_id = client.create_draft(package_name: package_name, **draft_meta)
         logger.success("Draft created (versionId=#{version_id})")
         logger.table([
-          ["Package",    package_name],
-          ["Version ID", version_id],
-          ["What's new", whats_new || "(not set)"]
+          ["Package",        package_name],
+          ["Version ID",     version_id],
+          ["What's new",     whats_new  || "(not set)"],
+          ["Moderator note", moder_info || "(not set)"]
         ])
 
         # ── Step 3: Upload primary build ───────────────────────────────────────
@@ -237,6 +240,14 @@ module Fastlane
             optional:    true,
             verify_block: proc { |v| UI.user_error!("whats_new must not exceed 5000 characters") if v.length > 5000 }
           ),
+          FastlaneCore::ConfigItem.new(
+            key:         :moder_info,
+            env_name:    "RUSTORE_MODER_INFO",
+            description: "Notes for the RuStore moderator, e.g. test credentials (max 180 chars)",
+            type:        String,
+            optional:    true,
+            verify_block: proc { |v| UI.user_error!("moder_info must not exceed 180 characters") if v.length > 180 }
+          ),
 
           # ── Publication ────────────────────────────────────────────────────
           FastlaneCore::ConfigItem.new(
@@ -258,10 +269,12 @@ module Fastlane
           FastlaneCore::ConfigItem.new(
             key:         :rollout_percentage,
             env_name:    "RUSTORE_ROLLOUT_PERCENTAGE",
-            description: "Staged rollout percentage (1-100); omit for full rollout",
+            description: "Staged rollout: allowed values are 5, 10, 25, 50, 75, 100; omit for full rollout",
             type:        Integer,
             optional:    true,
-            verify_block: proc { |v| UI.user_error!("rollout_percentage must be 1-100") unless (1..100).cover?(v) }
+            verify_block: proc { |v|
+              UI.user_error!("rollout_percentage must be one of: 5, 10, 25, 50, 75, 100") unless [5, 10, 25, 50, 75, 100].include?(v)
+            }
           )
         ]
       end

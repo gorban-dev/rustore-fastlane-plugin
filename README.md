@@ -63,9 +63,10 @@ You will get two values:
 | `apk_path` | `RUSTORE_APK_PATH` | one of two | — | Path to APK (used when `aab_path` not set) |
 | `hms_apk_path` | `RUSTORE_HMS_APK_PATH` | no | — | Path to Huawei/HMS APK (`servicesType=HMS, isMainApk=false`) |
 | `whats_new` | `RUSTORE_WHATS_NEW` | no | — | Release notes shown to users (plain text, max 5000 chars) |
+| `moder_info` | `RUSTORE_MODER_INFO` | no | — | Notes for the RuStore moderator, e.g. test credentials (max 180 chars) |
 | `publish_type` | `RUSTORE_PUBLISH_TYPE` | no | `INSTANTLY` | `INSTANTLY` / `MANUAL` / `DELAYED` |
 | `release_date` | `RUSTORE_RELEASE_DATE` | no | — | ISO 8601 datetime, only for `DELAYED` |
-| `rollout_percentage` | `RUSTORE_ROLLOUT_PERCENTAGE` | no | 100% | Staged rollout: 1–100 |
+| `rollout_percentage` | `RUSTORE_ROLLOUT_PERCENTAGE` | no | — | Staged rollout: allowed values `5, 10, 25, 50, 75, 100` |
 
 ---
 
