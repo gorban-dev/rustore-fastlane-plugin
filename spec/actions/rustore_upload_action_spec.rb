@@ -12,7 +12,7 @@ RSpec.describe Fastlane::Actions::RustoreUploadAction do
     "#{RUSTORE_API_BASE}/#{path}"
   end
 
-  def stub_full_workflow(publish_type: "INSTANTLY")
+  def stub_full_workflow
     stub_auth_success
 
     stub_request(:get, api("application/#{TEST_PACKAGE}/version"))
@@ -37,35 +37,21 @@ RSpec.describe Fastlane::Actions::RustoreUploadAction do
       .to_return(status: 200, body: JSON.generate({ code: "OK", body: {} }),
                  headers: { "Content-Type" => "application/json" })
 
-    stub_request(:get, api("application/#{TEST_PACKAGE}/version/#{TEST_VERSION_ID}"))
-      .to_return(status: 200,
-                 body: JSON.generate({ code: "OK", body: { versionStatus: "APPROVED" } }),
-                 headers: { "Content-Type" => "application/json" })
-
     stub_request(:put, api("application/#{TEST_PACKAGE}/version/#{TEST_VERSION_ID}/publish-settings"))
       .to_return(status: 200, body: JSON.generate({ code: "OK", body: {} }),
                  headers: { "Content-Type" => "application/json" })
-
-    if publish_type == "MANUAL"
-      stub_request(:post, api("application/#{TEST_PACKAGE}/version/#{TEST_VERSION_ID}/publish"))
-        .to_return(status: 200, body: JSON.generate({ code: "OK", body: {} }),
-                   headers: { "Content-Type" => "application/json" })
-    end
   end
 
   def run_lane(extra_params = "")
     Fastlane::FastFile.new.parse(<<~LANE).runner.execute(:test)
       lane :test do
         rustore_upload(
-          package_name:        '#{TEST_PACKAGE}',
-          key_id:              'test-key',
-          private_key:         #{rsa_pem.inspect},
-          aab_path:            '#{aab_file.path}',
-          hms_apk_path:        '#{apk_file.path}',
-          publish_type:        'INSTANTLY',
-          wait_for_moderation: true,
-          timeout:             60,
-          poll_interval:       1
+          package_name: '#{TEST_PACKAGE}',
+          key_id:       'test-key',
+          private_key:  #{rsa_pem.inspect},
+          aab_path:     '#{aab_file.path}',
+          hms_apk_path: '#{apk_file.path}',
+          publish_type: 'INSTANTLY'
           #{extra_params}
         )
       end
@@ -102,7 +88,7 @@ RSpec.describe Fastlane::Actions::RustoreUploadAction do
       expect(WebMock).to have_requested(:post, /isMainApk=false/).at_least_once
     end
 
-    it "submits the draft for moderation" do
+    it "submits for moderation" do
       run_lane
       expect(WebMock).to have_requested(
         :post, api("application/#{TEST_PACKAGE}/version/#{TEST_VERSION_ID}/commit")
@@ -115,29 +101,65 @@ RSpec.describe Fastlane::Actions::RustoreUploadAction do
         :put, api("application/#{TEST_PACKAGE}/version/#{TEST_VERSION_ID}/publish-settings")
       )
     end
+
+    it "does NOT call the /publish endpoint" do
+      run_lane
+      expect(WebMock).not_to have_requested(
+        :post, api("application/#{TEST_PACKAGE}/version/#{TEST_VERSION_ID}/publish")
+      )
+    end
+
+    it "does NOT call the moderation status endpoint" do
+      run_lane
+      expect(WebMock).not_to have_requested(
+        :get, api("application/#{TEST_PACKAGE}/version/#{TEST_VERSION_ID}")
+      )
+    end
   end
 
-  describe "MANUAL publish type" do
-    before { stub_full_workflow(publish_type: "MANUAL") }
+  describe "publish_type: MANUAL" do
+    before { stub_full_workflow }
 
-    it "triggers the /publish endpoint" do
+    it "configures MANUAL and does NOT call /publish endpoint" do
       Fastlane::FastFile.new.parse(<<~LANE).runner.execute(:test)
         lane :test do
           rustore_upload(
-            package_name:        '#{TEST_PACKAGE}',
-            key_id:              'test-key',
-            private_key:         #{rsa_pem.inspect},
-            aab_path:            '#{aab_file.path}',
-            publish_type:        'MANUAL',
-            wait_for_moderation: true,
-            timeout:             60,
-            poll_interval:       1
+            package_name: '#{TEST_PACKAGE}',
+            key_id:       'test-key',
+            private_key:  #{rsa_pem.inspect},
+            aab_path:     '#{aab_file.path}',
+            publish_type: 'MANUAL'
           )
         end
       LANE
-      expect(WebMock).to have_requested(
+
+      expect(WebMock).to have_requested(:put, /publish-settings/)
+        .with(body: /MANUAL/)
+      expect(WebMock).not_to have_requested(
         :post, api("application/#{TEST_PACKAGE}/version/#{TEST_VERSION_ID}/publish")
       )
+    end
+  end
+
+  describe "publish_type: DELAYED" do
+    before { stub_full_workflow }
+
+    it "passes release_date in publish-settings" do
+      Fastlane::FastFile.new.parse(<<~LANE).runner.execute(:test)
+        lane :test do
+          rustore_upload(
+            package_name: '#{TEST_PACKAGE}',
+            key_id:       'test-key',
+            private_key:  #{rsa_pem.inspect},
+            aab_path:     '#{aab_file.path}',
+            publish_type: 'DELAYED',
+            release_date: '2025-06-01T10:00:00+03:00'
+          )
+        end
+      LANE
+
+      expect(WebMock).to have_requested(:put, /publish-settings/)
+        .with(body: /DELAYED/)
     end
   end
 
@@ -170,11 +192,6 @@ RSpec.describe Fastlane::Actions::RustoreUploadAction do
         .to_return(status: 200, body: JSON.generate({ code: "OK", body: {} }),
                    headers: { "Content-Type" => "application/json" })
 
-      stub_request(:get, api("application/#{TEST_PACKAGE}/version/#{TEST_VERSION_ID}"))
-        .to_return(status: 200,
-                   body: JSON.generate({ code: "OK", body: { versionStatus: "APPROVED" } }),
-                   headers: { "Content-Type" => "application/json" })
-
       stub_request(:put, api("application/#{TEST_PACKAGE}/version/#{TEST_VERSION_ID}/publish-settings"))
         .to_return(status: 200, body: JSON.generate({ code: "OK", body: {} }),
                    headers: { "Content-Type" => "application/json" })
@@ -184,13 +201,10 @@ RSpec.describe Fastlane::Actions::RustoreUploadAction do
       Fastlane::FastFile.new.parse(<<~LANE).runner.execute(:test)
         lane :test do
           rustore_upload(
-            package_name:        '#{TEST_PACKAGE}',
-            key_id:              'test-key',
-            private_key:         #{rsa_pem.inspect},
-            aab_path:            '#{aab_file.path}',
-            wait_for_moderation: true,
-            timeout:             60,
-            poll_interval:       1
+            package_name: '#{TEST_PACKAGE}',
+            key_id:       'test-key',
+            private_key:  #{rsa_pem.inspect},
+            aab_path:     '#{aab_file.path}'
           )
         end
       LANE

@@ -5,7 +5,8 @@ Fastlane plugin for publishing Android applications to [RuStore](https://rustore
 ## Features
 
 - Upload **AAB** (Google/GMS, main artifact) and **APK** (Huawei/HMS, secondary) in a single version
-- Full publish workflow: authenticate → create draft → upload files → submit for moderation → publish
+- Full publish workflow: authenticate → create draft → upload files → submit for moderation → configure publication
+- The pipeline always finishes immediately after submission — no waiting for moderation
 - **GitLab CI** collapsible log sections (foldable blocks in Pipeline UI)
 - Staged rollout support (`rollout_percentage`)
 - Scheduled publishing (`DELAYED` + `release_date`)
@@ -64,15 +65,24 @@ You will get two values:
 | `publish_type` | `RUSTORE_PUBLISH_TYPE` | no | `INSTANTLY` | `INSTANTLY` / `MANUAL` / `DELAYED` |
 | `release_date` | `RUSTORE_RELEASE_DATE` | no | — | ISO 8601 datetime, only for `DELAYED` |
 | `rollout_percentage` | `RUSTORE_ROLLOUT_PERCENTAGE` | no | 100% | Staged rollout: 1–100 |
-| `wait_for_moderation` | `RUSTORE_WAIT_FOR_MODERATION` | no | `true` | Wait for moderation before finishing |
-| `timeout` | `RUSTORE_TIMEOUT` | no | `600` | Max seconds to wait for moderation |
-| `poll_interval` | `RUSTORE_POLL_INTERVAL` | no | `30` | Seconds between status checks |
+
+---
+
+## Publish types
+
+| `publish_type` | Behaviour |
+|---|---|
+| `INSTANTLY` | RuStore auto-publishes after moderation passes (default) |
+| `DELAYED` | Scheduled publication via `release_date` in ISO 8601 |
+| `MANUAL` | Moderation runs normally; publish manually from RuStore Console |
+
+The pipeline finishes immediately after submitting for moderation for all three types.
 
 ---
 
 ## Usage examples
 
-### Minimal — AAB only, auto-publish
+### Minimal — AAB only, INSTANTLY (default)
 
 ```ruby
 # fastlane/Fastfile
@@ -86,14 +96,14 @@ lane :deploy_rustore do
 end
 ```
 
-### Full — AAB (GMS) + APK (HMS), staged rollout
+### AAB (GMS) + APK (HMS), staged rollout
 
 ```ruby
 lane :deploy_rustore do
   rustore_upload(
     package_name:       "com.example.app",
     key_id:             ENV["RUSTORE_KEY_ID"],
-    private_key:        ENV["RUSTORE_PRIVATE_KEY"],  # PEM content from CI secret
+    private_key:        ENV["RUSTORE_PRIVATE_KEY"],
 
     # Primary build — Google/GMS (AAB is always isMainApk)
     aab_path:           "app/build/outputs/bundle/gmsRelease/app-gms-release.aab",
@@ -101,10 +111,8 @@ lane :deploy_rustore do
     # Secondary build — Huawei/HMS (servicesType=HMS, isMainApk=false)
     hms_apk_path:       "app/build/outputs/apk/hmsRelease/app-hms-release.apk",
 
-    publish_type:        "INSTANTLY",
-    rollout_percentage:  20,           # release to 20% of users first
-    wait_for_moderation: true,
-    timeout:             900           # wait up to 15 min
+    publish_type:       "INSTANTLY",
+    rollout_percentage: 20           # release to 20% of users first
   )
 end
 ```
@@ -114,28 +122,12 @@ end
 ```ruby
 lane :deploy_rustore_scheduled do
   rustore_upload(
-    package_name:     "com.example.app",
-    key_id:           ENV["RUSTORE_KEY_ID"],
-    private_key:      ENV["RUSTORE_PRIVATE_KEY"],
-    aab_path:         lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH],
-    publish_type:     "DELAYED",
-    release_date:     "2025-03-01T10:00:00+03:00",  # Moscow time
-    wait_for_moderation: false  # don't block the pipeline
-  )
-end
-```
-
-### Manual publish — submit for review, publish separately
-
-```ruby
-lane :submit_for_review do
-  rustore_upload(
-    package_name:        "com.example.app",
-    key_id:              ENV["RUSTORE_KEY_ID"],
-    private_key:         ENV["RUSTORE_PRIVATE_KEY"],
-    aab_path:            "app/build/outputs/bundle/release/app-release.aab",
-    publish_type:        "MANUAL",
-    wait_for_moderation: true   # waits for moderation, then triggers manual publish
+    package_name: "com.example.app",
+    key_id:       ENV["RUSTORE_KEY_ID"],
+    private_key:  ENV["RUSTORE_PRIVATE_KEY"],
+    aab_path:     lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH],
+    publish_type: "DELAYED",
+    release_date: "2025-03-01T10:00:00+03:00"  # Moscow time
   )
 end
 ```
@@ -144,17 +136,16 @@ end
 
 ```ruby
 lane :build_and_deploy do
-  # Build GMS (AAB) and HMS (APK) variants
-  gradle(task: "bundle", flavor: "gms", build_type: "Release")
+  gradle(task: "bundle",   flavor: "gms", build_type: "Release")
   gradle(task: "assemble", flavor: "hms", build_type: "Release")
 
   rustore_upload(
-    package_name:  "com.example.app",
-    key_id:        ENV["RUSTORE_KEY_ID"],
-    private_key:   ENV["RUSTORE_PRIVATE_KEY"],
-    aab_path:      lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH],
-    hms_apk_path:  "app/build/outputs/apk/hmsRelease/app-hms-release.apk",
-    publish_type:  "INSTANTLY"
+    package_name: "com.example.app",
+    key_id:       ENV["RUSTORE_KEY_ID"],
+    private_key:  ENV["RUSTORE_PRIVATE_KEY"],
+    aab_path:     lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH],
+    hms_apk_path: "app/build/outputs/apk/hmsRelease/app-hms-release.apk",
+    publish_type: "INSTANTLY"
   )
 end
 ```
@@ -215,19 +206,18 @@ end
 
 - Go to **Settings → CI/CD → Variables**
 - Add `RUSTORE_KEY_ID` as a regular masked variable
-- Add `RUSTORE_PRIVATE_KEY` as **type: File** — GitLab writes the content to a temp file and exports the path as the variable. Use `private_key_path: ENV["RUSTORE_PRIVATE_KEY"]`
-- Alternatively, add the PEM content as a masked variable and use `private_key: ENV["RUSTORE_PRIVATE_KEY"]`
+- Add `RUSTORE_PRIVATE_KEY` as **type: File** — GitLab writes the PEM to a temp file and exports the path. Use `private_key_path: ENV["RUSTORE_PRIVATE_KEY"]`
+- Alternatively, paste the PEM content as a masked variable and use `private_key: ENV["RUSTORE_PRIVATE_KEY"]`
 
-**GitLab CI log output** (with `GITLAB_CI=true`, steps appear as collapsible sections):
+**GitLab CI log output** (steps appear as collapsible sections):
 
 ```
-▶ [RuStore] Step 1/7: Authentication         ← click to expand
-▶ [RuStore] Step 2/7: Draft Management
-▶ [RuStore] Step 3/7: Uploading AAB (GMS/main)
-▶ [RuStore] Step 4/7: Uploading APK (HMS/secondary)
-▶ [RuStore] Step 5/7: Submitting for moderation
-▶ [RuStore] Step 6/7: Waiting for moderation (timeout: 900s)
-▶ [RuStore] Step 7/7: Publication
+▶ [RuStore] Step 1/6: Authentication              ← click to expand
+▶ [RuStore] Step 2/6: Draft Management
+▶ [RuStore] Step 3/6: Uploading AAB (GMS/main)
+▶ [RuStore] Step 4/6: Uploading APK (HMS/secondary)
+▶ [RuStore] Step 5/6: Submitting for moderation
+▶ [RuStore] Step 6/6: Configuring publication
 [RuStore] ✓ All done! com.example.app versionId=12345 submitted to RuStore.
 ```
 
@@ -274,12 +264,12 @@ jobs:
 # fastlane/Fastfile
 lane :deploy_rustore do
   rustore_upload(
-    package_name:  "com.example.app",
-    key_id:        ENV["RUSTORE_KEY_ID"],
-    private_key:   ENV["RUSTORE_PRIVATE_KEY"],  # PEM content from GitHub secret
-    aab_path:      "app/build/outputs/bundle/gmsRelease/app-gms-release.aab",
-    hms_apk_path:  "app/build/outputs/apk/hmsRelease/app-hms-release.apk",
-    publish_type:  "INSTANTLY"
+    package_name: "com.example.app",
+    key_id:       ENV["RUSTORE_KEY_ID"],
+    private_key:  ENV["RUSTORE_PRIVATE_KEY"],  # PEM content from GitHub secret
+    aab_path:     "app/build/outputs/bundle/gmsRelease/app-gms-release.aab",
+    hms_apk_path: "app/build/outputs/apk/hmsRelease/app-hms-release.apk",
+    publish_type: "INSTANTLY"
   )
 end
 ```
@@ -305,16 +295,6 @@ end
 ```
 
 Add `RUSTORE_KEY_ID` and `RUSTORE_PRIVATE_KEY` as **Secret Environment Variables** in Bitrise **Secrets** tab.
-
----
-
-## Publish types
-
-| `publish_type` | Behaviour |
-|---|---|
-| `INSTANTLY` | App goes live automatically after moderation passes (default) |
-| `MANUAL` | Plugin waits for moderation, then explicitly triggers publication |
-| `DELAYED` | Publication is scheduled; requires `release_date` in ISO 8601 format |
 
 ---
 
@@ -355,10 +335,9 @@ bundle exec fastlane deploy_rustore --verbose
 | `Authentication failed: ...` | Wrong `key_id` or corrupted key | Check key in RuStore Console → API RuStore |
 | `Failed to load RSA private key` | Invalid PEM format | Ensure the key includes `-----BEGIN/END PRIVATE KEY-----` |
 | `API request failed [404]` | Package not found | Verify `package_name`; at least 1 active version must exist in RuStore Console |
-| `API request failed [403]` | Key lacks permissions | In Console, ensure the key has access to the required API methods for your app |
+| `API request failed [403]` | Key lacks permissions | Ensure the key has access to the required API methods for your app in Console |
 | `version_code must be greater than current active` | Old build uploaded | Increment `versionCode` in `build.gradle` |
 | `Moderation declined` | RuStore reviewer rejected the update | Check reviewer comments in RuStore Console |
-| `Timed out waiting for moderation` | Moderation took too long | Increase `timeout` or set `wait_for_moderation: false` and check Console manually |
 
 ---
 
@@ -368,14 +347,8 @@ bundle exec fastlane deploy_rustore --verbose
 git clone https://github.com/your-org/fastlane-plugin-rustore
 cd fastlane-plugin-rustore
 bundle install
-bundle exec rspec        # run tests
+bundle exec rspec                         # run tests
 bundle exec rspec --format documentation  # verbose output
-```
-
-Run a specific spec file:
-
-```sh
-bundle exec rspec spec/unit/rustore_auth_spec.rb
 ```
 
 ---
