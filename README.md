@@ -62,6 +62,7 @@ You will get two values:
 | `aab_path` | `RUSTORE_AAB_PATH` | one of two | — | Path to AAB (Google/GMS — becomes main artifact) |
 | `apk_path` | `RUSTORE_APK_PATH` | one of two | — | Path to APK (used when `aab_path` not set) |
 | `hms_apk_path` | `RUSTORE_HMS_APK_PATH` | no | — | Path to Huawei/HMS APK (`servicesType=HMS, isMainApk=false`) |
+| `whats_new` | `RUSTORE_WHATS_NEW` | no | — | Release notes shown to users (plain text, max 5000 chars) |
 | `publish_type` | `RUSTORE_PUBLISH_TYPE` | no | `INSTANTLY` | `INSTANTLY` / `MANUAL` / `DELAYED` |
 | `release_date` | `RUSTORE_RELEASE_DATE` | no | — | ISO 8601 datetime, only for `DELAYED` |
 | `rollout_percentage` | `RUSTORE_ROLLOUT_PERCENTAGE` | no | 100% | Staged rollout: 1–100 |

@@ -37,11 +37,16 @@ module Fastlane
           logger.info("Existing draft deleted")
         end
 
-        version_id = client.create_draft(package_name: package_name)
+        whats_new  = params[:whats_new]
+        draft_meta = {}
+        draft_meta[:whatsNew] = whats_new if whats_new
+
+        version_id = client.create_draft(package_name: package_name, **draft_meta)
         logger.success("Draft created (versionId=#{version_id})")
         logger.table([
           ["Package",    package_name],
-          ["Version ID", version_id]
+          ["Version ID", version_id],
+          ["What's new", whats_new || "(not set)"]
         ])
 
         # ── Step 3: Upload primary build ───────────────────────────────────────
@@ -221,6 +226,16 @@ module Fastlane
             type:        String,
             optional:    true,
             verify_block: proc { |v| UI.user_error!("hms_apk_path file not found: #{v}") unless File.exist?(v) }
+          ),
+
+          # ── Release notes ──────────────────────────────────────────────────
+          FastlaneCore::ConfigItem.new(
+            key:         :whats_new,
+            env_name:    "RUSTORE_WHATS_NEW",
+            description: "Release notes shown to users (max 5000 chars, plain text)",
+            type:        String,
+            optional:    true,
+            verify_block: proc { |v| UI.user_error!("whats_new must not exceed 5000 characters") if v.length > 5000 }
           ),
 
           # ── Publication ────────────────────────────────────────────────────
