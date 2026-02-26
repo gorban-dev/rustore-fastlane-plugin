@@ -6,7 +6,7 @@ require_relative "../helper/rustore_logger"
 module Fastlane
   module Actions
     class RustoreUploadAction < Action
-      TOTAL_STEPS = 6
+      TOTAL_STEPS = 5
 
       def self.run(params)
         logger = RuStore::RustoreLogger.new(total_steps: TOTAL_STEPS)
@@ -37,11 +37,22 @@ module Fastlane
           logger.info("Existing draft deleted")
         end
 
-        whats_new  = params[:whats_new]
-        moder_info = params[:moder_info]
+        whats_new          = params[:whats_new]
+        moder_info         = params[:moder_info]
+        publish_type       = params[:publish_type]
+        release_date       = params[:release_date]
+        rollout_percentage = params[:rollout_percentage]
+
+        if release_date && publish_type != "DELAYED"
+          logger.warning("release_date is set but publish_type is '#{publish_type}' — only used with DELAYED")
+        end
+
         draft_meta = {}
-        draft_meta[:whatsNew]  = whats_new  if whats_new
-        draft_meta[:moderInfo] = moder_info if moder_info
+        draft_meta[:whatsNew]        = whats_new        if whats_new
+        draft_meta[:moderInfo]       = moder_info       if moder_info
+        draft_meta[:publishType]     = publish_type
+        draft_meta[:publishDateTime] = release_date     if release_date
+        draft_meta[:partialValue]    = rollout_percentage if rollout_percentage
 
         version_id = client.create_draft(package_name: package_name, **draft_meta)
         logger.success("Draft created (versionId=#{version_id})")
@@ -49,7 +60,10 @@ module Fastlane
           ["Package",        package_name],
           ["Version ID",     version_id],
           ["What's new",     whats_new  || "(not set)"],
-          ["Moderator note", moder_info || "(not set)"]
+          ["Moderator note", moder_info || "(not set)"],
+          ["Publish type",   publish_type],
+          ["Rollout",        rollout_percentage ? "#{rollout_percentage}%" : "100%"],
+          ["Release date",   release_date || "(not set)"]
         ])
 
         # ── Step 3: Upload primary build ───────────────────────────────────────
@@ -124,34 +138,8 @@ module Fastlane
           logger.info("Skipped (no hms_apk_path provided)")
         end
 
-        # ── Step 5: Configure publication ─────────────────────────────────────
-        logger.step(5, "Configuring publication")
-
-        publish_type       = params[:publish_type]
-        release_date       = params[:release_date]
-        rollout_percentage = params[:rollout_percentage]
-
-        logger.table([
-          ["Publish type",       publish_type],
-          ["Release date",       release_date       || "(not set)"],
-          ["Rollout percentage", rollout_percentage || "100%"]
-        ])
-
-        if release_date && publish_type != "DELAYED"
-          logger.warning("release_date is set but publish_type is '#{publish_type}' — only used with DELAYED")
-        end
-
-        client.configure_publication(
-          package_name:       package_name,
-          version_id:         version_id,
-          publish_type:       publish_type,
-          release_date:       release_date,
-          rollout_percentage: rollout_percentage
-        )
-        logger.success("Publication settings saved")
-
-        # ── Step 6: Submit for moderation ─────────────────────────────────────
-        logger.step(6, "Submitting for moderation")
+        # ── Step 5: Submit for moderation ─────────────────────────────────────
+        logger.step(5, "Submitting for moderation")
         client.submit_for_review(package_name: package_name, version_id: version_id)
 
         case publish_type

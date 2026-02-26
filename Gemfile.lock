@@ -5,7 +5,6 @@ PATH
       faraday (>= 1.0)
       faraday-multipart (~> 1.0)
       fastlane (>= 2.200.0)
-      jwt (~> 2.7)
 
 GEM
   remote: https://rubygems.org/

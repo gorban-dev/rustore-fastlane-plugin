@@ -36,10 +36,6 @@ RSpec.describe Fastlane::Actions::RustoreUploadAction do
     stub_request(:post, api("application/#{TEST_PACKAGE}/version/#{TEST_VERSION_ID}/commit"))
       .to_return(status: 200, body: JSON.generate({ code: "OK", body: {} }),
                  headers: { "Content-Type" => "application/json" })
-
-    stub_request(:put, api("application/#{TEST_PACKAGE}/version/#{TEST_VERSION_ID}/publish-settings"))
-      .to_return(status: 200, body: JSON.generate({ code: "OK", body: {} }),
-                 headers: { "Content-Type" => "application/json" })
   end
 
   def run_lane(extra_params = "")
@@ -95,10 +91,16 @@ RSpec.describe Fastlane::Actions::RustoreUploadAction do
       )
     end
 
-    it "configures publication settings" do
+    it "includes publishType in the draft creation request" do
       run_lane
-      expect(WebMock).to have_requested(
-        :put, api("application/#{TEST_PACKAGE}/version/#{TEST_VERSION_ID}/publish-settings")
+      expect(WebMock).to have_requested(:post, api("application/#{TEST_PACKAGE}/version"))
+        .with(body: /publishType/)
+    end
+
+    it "does NOT call the /publish-settings endpoint" do
+      run_lane
+      expect(WebMock).not_to have_requested(
+        :put, /publish-settings/
       )
     end
 
@@ -133,7 +135,7 @@ RSpec.describe Fastlane::Actions::RustoreUploadAction do
         end
       LANE
 
-      expect(WebMock).to have_requested(:put, /publish-settings/)
+      expect(WebMock).to have_requested(:post, api("application/#{TEST_PACKAGE}/version"))
         .with(body: /MANUAL/)
       expect(WebMock).not_to have_requested(
         :post, api("application/#{TEST_PACKAGE}/version/#{TEST_VERSION_ID}/publish")
@@ -144,7 +146,7 @@ RSpec.describe Fastlane::Actions::RustoreUploadAction do
   describe "publish_type: DELAYED" do
     before { stub_full_workflow }
 
-    it "passes release_date in publish-settings" do
+    it "passes release_date and DELAYED publishType in draft creation" do
       Fastlane::FastFile.new.parse(<<~LANE).runner.execute(:test)
         lane :test do
           rustore_upload(
@@ -158,8 +160,10 @@ RSpec.describe Fastlane::Actions::RustoreUploadAction do
         end
       LANE
 
-      expect(WebMock).to have_requested(:put, /publish-settings/)
+      expect(WebMock).to have_requested(:post, api("application/#{TEST_PACKAGE}/version"))
         .with(body: /DELAYED/)
+      expect(WebMock).to have_requested(:post, api("application/#{TEST_PACKAGE}/version"))
+        .with(body: /publishDateTime/)
     end
   end
 
@@ -189,10 +193,6 @@ RSpec.describe Fastlane::Actions::RustoreUploadAction do
                    headers: { "Content-Type" => "application/json" })
 
       stub_request(:post, api("application/#{TEST_PACKAGE}/version/#{TEST_VERSION_ID}/commit"))
-        .to_return(status: 200, body: JSON.generate({ code: "OK", body: {} }),
-                   headers: { "Content-Type" => "application/json" })
-
-      stub_request(:put, api("application/#{TEST_PACKAGE}/version/#{TEST_VERSION_ID}/publish-settings"))
         .to_return(status: 200, body: JSON.generate({ code: "OK", body: {} }),
                    headers: { "Content-Type" => "application/json" })
     end

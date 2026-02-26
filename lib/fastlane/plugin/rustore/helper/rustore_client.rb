@@ -187,15 +187,20 @@ module Fastlane
       # @param publish_type       [String]  "INSTANTLY" | "MANUAL" | "DELAYED"
       # @param release_date       [String]  ISO 8601, required for "DELAYED"
       # @param rollout_percentage [Integer] 1-100, nil means 100%
+      # Returns true if settings were saved, false if the request was rejected
+      # (e.g. 403 — API key lacks permission). Pass soft: true to suppress the
+      # fatal error and let the caller decide how to handle the failure.
       def configure_publication(package_name:, version_id:,
                                 publish_type: "INSTANTLY",
                                 release_date: nil,
-                                rollout_percentage: nil)
+                                rollout_percentage: nil,
+                                soft: false)
         body = { publishType: publish_type }
-        body[:releaseDateTime]    = release_date       if release_date
+        body[:releaseDateTime]     = release_date       if release_date
         body[:partialPublishValue] = rollout_percentage if rollout_percentage
 
-        put("application/#{package_name}/version/#{version_id}/publish-settings", body)
+        result = put("application/#{package_name}/version/#{version_id}/publish-settings", body, soft: soft)
+        !result.nil?
       end
 
       # POST /application/{package}/version/{id}/publish
@@ -222,13 +227,13 @@ module Fastlane
         handle_response(resp, path)
       end
 
-      def put(path, body)
+      def put(path, body, soft: false)
         resp = @conn.put(path) do |r|
           r.headers["Public-Token"]  = @auth.token
           r.headers["Content-Type"]  = "application/json"
           r.body                     = JSON.generate(body)
         end
-        handle_response(resp, path)
+        handle_response(resp, path, raise_error: !soft)
       end
 
       def delete(path)
@@ -259,15 +264,20 @@ module Fastlane
         handle_response(resp, path)
       end
 
-      def handle_response(resp, path)
+      def handle_response(resp, path, raise_error: true)
         body = safe_parse_json(resp.body)
 
         unless resp.success?
           api_message = body&.dig("message") || body&.dig("body", "message") || resp.body.to_s.slice(0, 300)
-          @logger.error(
-            "API request failed [#{resp.status}] #{path}: #{api_message}",
-            hint: error_hint(resp.status, api_message)
-          )
+          if raise_error
+            @logger.error(
+              "API request failed [#{resp.status}] #{path}: #{api_message}",
+              hint: error_hint(resp.status, api_message)
+            )
+          else
+            @logger.warning("API request failed [#{resp.status}] #{path}: #{api_message}")
+            return nil
+          end
         end
 
         # RuStore sometimes returns 200 with code != "OK"
