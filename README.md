@@ -114,7 +114,7 @@ lane :deploy_rustore do
     hms_apk_path:       "app/build/outputs/apk/hmsRelease/app-hms-release.apk",
 
     publish_type:       "INSTANTLY",
-    rollout_percentage: 20           # release to 20% of users first
+    rollout_percentage: 25           # release to 25% of users first
   )
 end
 ```
@@ -346,7 +346,7 @@ bundle exec fastlane deploy_rustore --verbose
 ## Development
 
 ```sh
-git clone https://github.com/your-org/fastlane-plugin-rustore
+git clone https://github.com/gorban-dev/rustore-fastlane-plugin
 cd fastlane-plugin-rustore
 bundle install
 bundle exec rspec                         # run tests

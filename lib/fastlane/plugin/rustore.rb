@@ -7,6 +7,10 @@ module Fastlane
       Dir[File.expand_path("rustore/**/*.rb", __dir__)]
     end
   end
+
+  # Fastlane resolves plugin modules by camelizing the gem name suffix,
+  # so fastlane-plugin-rustore → Fastlane::Rustore. Alias for compatibility.
+  Rustore = RuStore
 end
 
 # Autoload all actions and helpers
