@@ -68,5 +68,23 @@ RSpec.describe Fastlane::RuStore::RustoreAuth do
         end.to raise_error(FastlaneCore::Interface::FastlaneError, /RSA private key/)
       end
     end
+
+    context "with raw base64 (no PEM headers)" do
+      before { stub_auth_success }
+
+      it "auto-wraps bare base64 and loads the key successfully" do
+        # Strip PEM headers generically — simulates a CI secret stored as raw base64
+        # (works for both PKCS#8 "BEGIN PRIVATE KEY" and PKCS#1 "BEGIN RSA PRIVATE KEY")
+        bare_b64 = test_private_key_pem
+                     .gsub(/-----BEGIN [A-Z ]+-----/, "")
+                     .gsub(/-----END [A-Z ]+-----/, "")
+                     .gsub(/\s+/, "")
+
+        expect do
+          auth_bare = described_class.new(key_id: "test-key-id", private_key: bare_b64, logger: logger)
+          auth_bare.token
+        end.not_to raise_error
+      end
+    end
   end
 end

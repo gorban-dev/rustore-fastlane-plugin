@@ -114,13 +114,33 @@ module Fastlane
               else
                 private_key
               end
-        OpenSSL::PKey::RSA.new(pem)
+
+        if pem.strip.start_with?("-----")
+          OpenSSL::PKey::RSA.new(pem)
+        else
+          # Raw base64 without PEM headers (e.g. CI secret stored without BEGIN/END lines).
+          # Try PKCS#8 first (RuStore keys), then fall back to traditional PKCS#1.
+          load_bare_base64(pem.strip.gsub(/\s+/, ""))
+        end
       rescue OpenSSL::PKey::RSAError => e
         @logger.error(
           "Failed to load RSA private key: #{e.message}",
-          hint: "Ensure the key is a valid RSA PEM (PKCS#8 or traditional format)",
+          hint: "Ensure the key is a valid RSA PEM — either a full PEM string " \
+                "(with -----BEGIN PRIVATE KEY----- header) or raw base64 content",
           raise_error: true
         )
+      end
+
+      # Tries to load a bare base64 DER blob by wrapping it in PEM headers.
+      # Attempts PKCS#8 first (RuStore generates PKCS#8 keys), then PKCS#1.
+      def load_bare_base64(b64)
+        body = b64.scan(/.{1,64}/).join("\n")
+
+        begin
+          OpenSSL::PKey::RSA.new("-----BEGIN PRIVATE KEY-----\n#{body}\n-----END PRIVATE KEY-----\n")
+        rescue OpenSSL::PKey::RSAError
+          OpenSSL::PKey::RSA.new("-----BEGIN RSA PRIVATE KEY-----\n#{body}\n-----END RSA PRIVATE KEY-----\n")
+        end
       end
 
       def safe_parse_json(str)
