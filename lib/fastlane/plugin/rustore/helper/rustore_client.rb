@@ -44,7 +44,12 @@ module Fastlane
           "application/#{package_name}/version",
           metadata
         )
-        version_id = resp.dig("body", "publishId") || resp.dig("body", "versionId")
+        body       = resp["body"]
+        version_id = if body.is_a?(Hash)
+                       body["publishId"] || body["versionId"]
+                     else
+                       body  # API returns the version ID directly as an integer
+                     end
 
         if version_id.nil?
           @logger.error(

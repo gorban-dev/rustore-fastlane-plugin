@@ -14,23 +14,40 @@ RSpec.describe Fastlane::RuStore::RustoreClient do
   # ── Draft management ──────────────────────────────────────────────────────
 
   describe "#create_draft" do
-    before do
-      stub_request(:post, api_url("application/#{TEST_PACKAGE}/version"))
-        .to_return(
-          status:  200,
-          body:    JSON.generate({ code: "OK", body: { publishId: TEST_VERSION_ID } }),
-          headers: { "Content-Type" => "application/json" }
-        )
+    context "when body is a hash with publishId" do
+      before do
+        stub_request(:post, api_url("application/#{TEST_PACKAGE}/version"))
+          .to_return(
+            status:  200,
+            body:    JSON.generate({ code: "OK", body: { publishId: TEST_VERSION_ID } }),
+            headers: { "Content-Type" => "application/json" }
+          )
+      end
+
+      it "returns the versionId as integer" do
+        expect(client.create_draft(package_name: TEST_PACKAGE)).to eq(TEST_VERSION_ID)
+      end
+
+      it "sends the Public-Token header" do
+        client.create_draft(package_name: TEST_PACKAGE)
+        expect(WebMock).to have_requested(:post, api_url("application/#{TEST_PACKAGE}/version"))
+          .with(headers: { "Public-Token" => TEST_JWE_TOKEN })
+      end
     end
 
-    it "returns the versionId as integer" do
-      expect(client.create_draft(package_name: TEST_PACKAGE)).to eq(TEST_VERSION_ID)
-    end
+    context "when body is the version ID directly (integer)" do
+      before do
+        stub_request(:post, api_url("application/#{TEST_PACKAGE}/version"))
+          .to_return(
+            status:  200,
+            body:    JSON.generate({ code: "OK", body: TEST_VERSION_ID }),
+            headers: { "Content-Type" => "application/json" }
+          )
+      end
 
-    it "sends the Public-Token header" do
-      client.create_draft(package_name: TEST_PACKAGE)
-      expect(WebMock).to have_requested(:post, api_url("application/#{TEST_PACKAGE}/version"))
-        .with(headers: { "Public-Token" => TEST_JWE_TOKEN })
+      it "returns the versionId as integer" do
+        expect(client.create_draft(package_name: TEST_PACKAGE)).to eq(TEST_VERSION_ID)
+      end
     end
   end
 
