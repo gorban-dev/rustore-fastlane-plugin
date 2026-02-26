@@ -1,5 +1,5 @@
-require "jwt"
 require "openssl"
+require "base64"
 require "net/http"
 require "json"
 require "uri"
@@ -11,23 +11,24 @@ module Fastlane
     #
     # Flow:
     #   1. Load RSA private key (PEM file or inline string).
-    #   2. Build a signed JWT (RS256) with key_id in the header.
-    #   3. POST the JWT to /public/auth/ → receive a JWE token.
+    #   2. Build request body: { keyId, timestamp, signature }
+    #      where signature = Base64( RSA-SHA512( keyId + timestamp ) )
+    #   3. POST to /public/auth → receive a JWE token (TTL 900s).
     #   4. Cache the token; auto-refresh when it's within REFRESH_BEFORE
     #      seconds of expiry.
     #
-    # Reference: https://www.rustore.ru/help/en/work-with-rustore-api/api-authorization-process
+    # Reference: https://www.rustore.ru/help/en/work-with-rustore-api/api-authorization-token
     class RustoreAuth
       AUTH_URL       = "https://public-api.rustore.ru/public/auth"
       TOKEN_TTL      = 900  # seconds (as documented by RuStore)
       REFRESH_BEFORE = 60   # refresh the token this many seconds before expiry
 
       def initialize(key_id:, private_key:, logger: nil)
-        @key_id      = key_id
-        @logger      = logger || RustoreLogger.new
-        @rsa_key     = load_rsa_key(private_key)
-        @token       = nil
-        @expires_at  = nil
+        @key_id     = key_id
+        @logger     = logger || RustoreLogger.new
+        @rsa_key    = load_rsa_key(private_key)
+        @token      = nil
+        @expires_at = nil
       end
 
       # Returns a valid JWE token, refreshing if necessary.
@@ -52,25 +53,33 @@ module Fastlane
         @token.nil? || @expires_at.nil? || Time.now >= @expires_at
       end
 
-      # Build a minimal JWT signed with the RSA private key.
-      # RuStore uses the `kid` (key ID) header claim to identify the key.
-      def build_jwt
-        payload = {
-          iss: @key_id,   # issuer = key_id as documented
-          iat: Time.now.to_i
-        }
-        headers = { kid: @key_id }
-        JWT.encode(payload, @rsa_key, "RS256", headers)
+      # Builds the auth request body:
+      #   keyId     — API key identifier from RuStore Console
+      #   timestamp — ISO 8601 with milliseconds and timezone offset
+      #   signature — Base64-encoded RSA-SHA512 signature of (keyId + timestamp)
+      def build_auth_body
+        timestamp = build_timestamp
+        message   = "#{@key_id}#{timestamp}"
+        digest    = OpenSSL::Digest::SHA512.new
+        signature = Base64.strict_encode64(@rsa_key.sign(digest, message))
+
+        { keyId: @key_id, timestamp: timestamp, signature: signature }
       end
 
-      # POST the signed JWT to RuStore auth and return the JWE token string.
+      # Formats the current time as ISO 8601 with milliseconds and UTC offset.
+      # Example: "2024-01-01T10:00:00.000+03:00"
+      def build_timestamp
+        t = Time.now
+        t.strftime("%Y-%m-%dT%H:%M:%S.%3N") + t.strftime("%:z")
+      end
+
+      # POST auth body to RuStore and return the JWE token string.
       def fetch_jwe_token
-        jwt = build_jwt
         uri = URI(AUTH_URL)
 
         request = Net::HTTP::Post.new(uri)
         request["Content-Type"] = "application/json"
-        request.body = JSON.generate({ jwe: jwt })
+        request.body = JSON.generate(build_auth_body)
 
         response = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true) do |http|
           http.read_timeout = 30
@@ -83,8 +92,8 @@ module Fastlane
 
       def handle_auth_response(response)
         unless response.is_a?(Net::HTTPSuccess)
-          body = safe_parse_json(response.body)
-          message = body&.dig("message") || response.body || "HTTP #{response.code}"
+          body    = safe_parse_json(response.body)
+          message = body&.dig("message") || response.body.to_s.slice(0, 300)
           @logger.error(
             "Authentication failed: #{message}",
             hint: "Verify key_id and private_key are correct and the key has API access enabled in RuStore Console",
@@ -93,14 +102,12 @@ module Fastlane
         end
 
         body = safe_parse_json(response.body)
-
-        # RuStore wraps responses in { "body": { "jwe": "..." }, "code": "OK" }
-        jwe = body&.dig("body", "jwe") || body&.dig("jwe")
+        jwe  = body&.dig("body", "jwe") || body&.dig("jwe")
 
         if jwe.nil? || jwe.empty?
           @logger.error(
             "Authentication response did not contain a JWE token",
-            hint: "Unexpected API response format: #{response.body.slice(0, 200)}",
+            hint: "Unexpected API response format: #{response.body.to_s.slice(0, 200)}",
             raise_error: true
           )
         end
@@ -144,7 +151,7 @@ module Fastlane
       end
 
       def safe_parse_json(str)
-        JSON.parse(str)
+        JSON.parse(str.to_s)
       rescue StandardError
         nil
       end

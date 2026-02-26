@@ -23,10 +23,9 @@ Gem::Specification.new do |spec|
 
   spec.required_ruby_version = ">= 2.6"
 
-  spec.add_dependency "fastlane",         ">= 2.200.0"
-  spec.add_dependency "jwt",              "~> 2.7"
+  spec.add_dependency "fastlane",          ">= 2.200.0"
   # faraday: no upper version pin — lets fastlane's faraday (~> 1.0) resolve
-  spec.add_dependency "faraday",          ">= 1.0"
+  spec.add_dependency "faraday",           ">= 1.0"
   spec.add_dependency "faraday-multipart", "~> 1.0"
 
   spec.add_development_dependency "bundler",  ">= 1.17.3"
