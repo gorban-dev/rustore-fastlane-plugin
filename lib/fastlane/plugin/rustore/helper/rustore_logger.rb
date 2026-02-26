@@ -87,6 +87,33 @@ module Fastlane
         end
       end
 
+      # Reports upload progress.
+      #
+      # In TTY mode: rewrites the current line in-place using \r.
+      # In CI / non-TTY mode: logs milestone messages at 25 % increments.
+      #
+      # @param bytes_read   [Integer] bytes transferred so far
+      # @param total_bytes  [Integer] total file size in bytes
+      def progress(bytes_read, total_bytes)
+        return if total_bytes == 0
+
+        pct = [(bytes_read * 100.0 / total_bytes).round, 100].min
+
+        if @gitlab_ci || !$stdout.tty?
+          @progress_milestone = -1 if @progress_milestone.nil? || pct < @progress_milestone
+          milestone = (pct / 25) * 25
+          if milestone > @progress_milestone
+            @progress_milestone = milestone
+            UI.message("#{PREFIX}   Upload: #{milestone}%")
+          end
+        else
+          bar = build_bar(pct)
+          $stdout.print("\r#{PREFIX} [#{bar}] #{pct}%  #{fmt_bytes(bytes_read)} / #{fmt_bytes(total_bytes)}   ")
+          $stdout.flush
+          $stdout.print("\n") if pct >= 100
+        end
+      end
+
       # Close the currently open GitLab CI section (called automatically
       # before each new step and at the end of the workflow).
       def finalize
@@ -102,6 +129,27 @@ module Fastlane
         $stdout.print(format(SECTION_END, ts: ts, name: @open_section[:name]) + "\n")
         $stdout.flush
         @open_section = nil
+      end
+
+      BAR_WIDTH = 20
+
+      def build_bar(pct)
+        if pct >= 100
+          "=" * BAR_WIDTH
+        else
+          n = ((BAR_WIDTH - 1) * pct / 100.0).floor
+          "=" * n + ">" + " " * (BAR_WIDTH - 1 - n)
+        end
+      end
+
+      def fmt_bytes(n)
+        if n >= 1_048_576
+          format("%.1f MB", n / 1_048_576.0)
+        elsif n >= 1024
+          format("%.1f KB", n / 1024.0)
+        else
+          "#{n} B"
+        end
       end
     end
   end

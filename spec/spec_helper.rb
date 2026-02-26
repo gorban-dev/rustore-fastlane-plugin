@@ -72,7 +72,7 @@ end
 def raising_logger_double
   logger = instance_double(
     Fastlane::RuStore::RustoreLogger,
-    verbose: nil, info: nil, success: nil, warning: nil, table: nil, step: nil
+    verbose: nil, info: nil, success: nil, warning: nil, table: nil, step: nil, progress: nil
   )
   allow(logger).to receive(:error) do |msg, **|
     raise_fastlane_error(msg)

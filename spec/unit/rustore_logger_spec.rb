@@ -51,6 +51,66 @@ RSpec.describe Fastlane::RuStore::RustoreLogger do
     end
   end
 
+  describe "#progress" do
+    context "in non-TTY mode" do
+      before { allow($stdout).to receive(:tty?).and_return(false) }
+
+      it "logs at the 25% milestone" do
+        expect(FastlaneCore::UI).to receive(:message).with(/Upload: 25%/)
+        logger.progress(25, 100)
+      end
+
+      it "logs at 50%, 75%, 100% milestones" do
+        expect(FastlaneCore::UI).to receive(:message).with(/Upload: 25%/)
+        expect(FastlaneCore::UI).to receive(:message).with(/Upload: 50%/)
+        expect(FastlaneCore::UI).to receive(:message).with(/Upload: 75%/)
+        expect(FastlaneCore::UI).to receive(:message).with(/Upload: 100%/)
+        logger.progress(25, 100)
+        logger.progress(50, 100)
+        logger.progress(75, 100)
+        logger.progress(100, 100)
+      end
+
+      it "does not repeat the same milestone" do
+        expect(FastlaneCore::UI).to receive(:message).once
+        logger.progress(25, 100)
+        logger.progress(30, 100)
+        logger.progress(40, 100)
+      end
+
+      it "resets milestones when a new file starts (pct goes backward)" do
+        expect(FastlaneCore::UI).to receive(:message).with(/Upload: 50%/).twice
+        logger.progress(50, 100)
+        logger.progress(10, 100) # new file — pct went backward
+        logger.progress(50, 100)
+      end
+
+      it "does nothing when total_bytes is zero" do
+        expect(FastlaneCore::UI).not_to receive(:message)
+        logger.progress(0, 0)
+      end
+    end
+
+    context "in TTY mode" do
+      before do
+        allow($stdout).to receive(:tty?).and_return(true)
+        allow($stdout).to receive(:print)
+        allow($stdout).to receive(:flush)
+      end
+
+      it "writes to stdout with carriage return" do
+        expect($stdout).to receive(:print).with(/\r.*\[.*\].*%/)
+        logger.progress(50, 100)
+      end
+
+      it "appends a newline at 100%" do
+        expect($stdout).to receive(:print).with(/\r/)
+        expect($stdout).to receive(:print).with("\n")
+        logger.progress(100, 100)
+      end
+    end
+  end
+
   describe "GitLab CI mode" do
     around do |example|
       ENV["GITLAB_CI"] = "true"

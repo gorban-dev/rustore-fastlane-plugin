@@ -245,10 +245,14 @@ module Fastlane
 
         url = query.empty? ? path : "#{path}?#{URI.encode_www_form(query)}"
 
+        progress_io = ProgressIO.new(file_path) do |bytes, total|
+          @logger.progress(bytes, total)
+        end
+
         resp = @conn.post(url) do |req|
           req.headers["Public-Token"] = @auth.token
           req.body = {
-            file: Faraday::UploadIO.new(file_path, content_type, filename)
+            file: Faraday::UploadIO.new(progress_io, content_type, filename)
           }
         end
 
@@ -305,6 +309,33 @@ module Fastlane
         JSON.parse(str.to_s)
       rescue StandardError
         {}
+      end
+
+      # Wraps a file IO and fires a callback after each read chunk so that
+      # callers can track upload progress. Fully compatible with
+      # Faraday::UploadIO (responds to read, size, eof?, rewind, close, path).
+      class ProgressIO
+        def initialize(file_path, &callback)
+          @io       = File.open(file_path, "rb")
+          @total    = File.size(file_path)
+          @bytes    = 0
+          @callback = callback
+        end
+
+        def read(length = nil, outbuf = nil)
+          chunk = length ? @io.read(length) : @io.read
+          if chunk && !chunk.empty?
+            @bytes += chunk.bytesize
+            @callback.call(@bytes, @total)
+          end
+          outbuf ? (outbuf.replace(chunk || ""); outbuf) : chunk
+        end
+
+        def size;   @total;              end
+        def eof?;   @io.eof?;            end
+        def rewind; @io.rewind; @bytes = 0; end
+        def close;  @io.close;           end
+        def path;   @io.path;            end
       end
     end
   end
