@@ -124,13 +124,8 @@ module Fastlane
           logger.info("Skipped (no hms_apk_path provided)")
         end
 
-        # ── Step 5: Submit for moderation ─────────────────────────────────────
-        logger.step(5, "Submitting for moderation")
-        client.submit_for_review(package_name: package_name, version_id: version_id)
-        logger.success("Draft submitted for moderation")
-
-        # ── Step 6: Configure publication ─────────────────────────────────────
-        logger.step(6, "Configuring publication")
+        # ── Step 5: Configure publication ─────────────────────────────────────
+        logger.step(5, "Configuring publication")
 
         publish_type       = params[:publish_type]
         release_date       = params[:release_date]
@@ -153,14 +148,19 @@ module Fastlane
           release_date:       release_date,
           rollout_percentage: rollout_percentage
         )
+        logger.success("Publication settings saved")
+
+        # ── Step 6: Submit for moderation ─────────────────────────────────────
+        logger.step(6, "Submitting for moderation")
+        client.submit_for_review(package_name: package_name, version_id: version_id)
 
         case publish_type
         when "INSTANTLY"
-          logger.success("Done — RuStore will publish automatically after moderation")
+          logger.success("Submitted — RuStore will publish automatically after moderation")
         when "DELAYED"
-          logger.success("Done — scheduled for #{release_date}")
+          logger.success("Submitted — scheduled for #{release_date}")
         when "MANUAL"
-          logger.success("Done — publish manually from RuStore Console after moderation passes")
+          logger.success("Submitted — publish manually from RuStore Console after moderation passes")
         end
 
         logger.finalize
