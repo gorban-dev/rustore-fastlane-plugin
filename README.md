@@ -1,4 +1,4 @@
-# fastlane-plugin-rustore
+# fastlane-plugin-rustore_publish
 
 Fastlane plugin for publishing Android applications to [RuStore](https://rustore.ru) — the Russian app store — via the [RuStore Public API](https://www.rustore.ru/help/work-with-rustore-api/api-upload-publication-app).
 
@@ -27,7 +27,7 @@ Add the plugin to your `Pluginfile`:
 
 ```ruby
 # Pluginfile
-gem "fastlane-plugin-rustore"
+gem "fastlane-plugin-rustore_publish"
 ```
 
 Then run:
@@ -347,7 +347,7 @@ bundle exec fastlane deploy_rustore --verbose
 
 ```sh
 git clone https://github.com/gorban-dev/rustore-fastlane-plugin
-cd fastlane-plugin-rustore
+cd fastlane-plugin-rustore_publish
 bundle install
 bundle exec rspec                         # run tests
 bundle exec rspec --format documentation  # verbose output

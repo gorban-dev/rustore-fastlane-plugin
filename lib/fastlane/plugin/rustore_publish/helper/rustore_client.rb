@@ -5,7 +5,7 @@ require_relative "rustore_auth"
 require_relative "rustore_logger"
 
 module Fastlane
-  module RuStore
+  module RustorePublish
     # HTTP client for the RuStore Public API.
     #
     # All methods raise via RustoreLogger#error on non-2xx responses so that

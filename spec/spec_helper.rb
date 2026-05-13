@@ -4,7 +4,7 @@ require "fastlane_core"
 
 # Load all plugin files
 $LOAD_PATH.unshift(File.expand_path("../lib", __dir__))
-require "fastlane/plugin/rustore"
+require "fastlane/plugin/rustore_publish"
 
 WebMock.disable_net_connect!
 
@@ -71,7 +71,7 @@ end
 # A logger double where #error raises FastlaneError (mirrors real behavior).
 def raising_logger_double
   logger = instance_double(
-    Fastlane::RuStore::RustoreLogger,
+    Fastlane::RustorePublish::RustoreLogger,
     verbose: nil, info: nil, success: nil, warning: nil, table: nil, step: nil, progress: nil
   )
   allow(logger).to receive(:error) do |msg, **|

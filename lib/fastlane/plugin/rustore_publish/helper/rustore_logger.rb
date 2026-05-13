@@ -1,7 +1,7 @@
 require "fastlane_core/ui/ui"
 
 module Fastlane
-  module RuStore
+  module RustorePublish
     # Structured logger for RuStore plugin.
     #
     # In standard mode outputs via FastlaneCore::UI.* helpers.

@@ -1,9 +1,9 @@
 require "spec_helper"
 require "tempfile"
 
-RSpec.describe Fastlane::RuStore::RustoreClient do
+RSpec.describe Fastlane::RustorePublish::RustoreClient do
   let(:logger) { raising_logger_double }
-  let(:auth)   { instance_double(Fastlane::RuStore::RustoreAuth, token: TEST_JWE_TOKEN) }
+  let(:auth)   { instance_double(Fastlane::RustorePublish::RustoreAuth, token: TEST_JWE_TOKEN) }
   let(:client) { described_class.new(auth: auth, logger: logger) }
 
   # Base URL for all API stubs — must match BASE_URL + relative paths in client

@@ -1,6 +1,6 @@
 require "spec_helper"
 
-RSpec.describe Fastlane::RuStore::RustoreAuth do
+RSpec.describe Fastlane::RustorePublish::RustoreAuth do
   let(:logger) { raising_logger_double }
   let(:auth)   { described_class.new(key_id: "test-key-id", private_key: test_private_key_pem, logger: logger) }
 

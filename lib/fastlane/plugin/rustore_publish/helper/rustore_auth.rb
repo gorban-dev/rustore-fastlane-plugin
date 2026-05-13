@@ -6,7 +6,7 @@ require "uri"
 require_relative "rustore_logger"
 
 module Fastlane
-  module RuStore
+  module RustorePublish
     # Handles authentication against the RuStore Public API.
     #
     # Flow:

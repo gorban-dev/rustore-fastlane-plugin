@@ -1,6 +1,6 @@
 require "spec_helper"
 
-RSpec.describe Fastlane::RuStore::RustoreLogger do
+RSpec.describe Fastlane::RustorePublish::RustoreLogger do
   let(:logger) { described_class.new(total_steps: 7) }
 
   describe "#step" do

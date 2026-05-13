@@ -9,13 +9,13 @@ module Fastlane
       TOTAL_STEPS = 5
 
       def self.run(params)
-        logger = RuStore::RustoreLogger.new(total_steps: TOTAL_STEPS)
+        logger = RustorePublish::RustoreLogger.new(total_steps: TOTAL_STEPS)
 
         # ── Step 1: Authentication ─────────────────────────────────────────────
         logger.step(1, "Authentication")
 
         private_key = params[:private_key] || File.read(params[:private_key_path])
-        auth = RuStore::RustoreAuth.new(
+        auth = RustorePublish::RustoreAuth.new(
           key_id:      params[:key_id],
           private_key: private_key,
           logger:      logger
@@ -23,7 +23,7 @@ module Fastlane
         auth.refresh!
         logger.success("JWE token obtained (valid 900s, auto-refresh enabled)")
 
-        client       = RuStore::RustoreClient.new(auth: auth, logger: logger)
+        client       = RustorePublish::RustoreClient.new(auth: auth, logger: logger)
         package_name = params[:package_name]
 
         # ── Step 2: Draft Management ───────────────────────────────────────────
@@ -103,7 +103,7 @@ module Fastlane
             package_name:  package_name,
             version_id:    version_id,
             file_path:     apk_path,
-            services_type: RuStore::RustoreClient::SERVICES_TYPE_UNKNOWN,
+            services_type: RustorePublish::RustoreClient::SERVICES_TYPE_UNKNOWN,
             is_main_apk:   true
           )
           logger.success("APK uploaded successfully")
@@ -130,7 +130,7 @@ module Fastlane
             package_name:  package_name,
             version_id:    version_id,
             file_path:     hms_apk_path,
-            services_type: RuStore::RustoreClient::SERVICES_TYPE_HMS,
+            services_type: RustorePublish::RustoreClient::SERVICES_TYPE_HMS,
             is_main_apk:   false
           )
           logger.success("HMS APK uploaded successfully")
@@ -152,7 +152,7 @@ module Fastlane
         end
 
         logger.finalize
-        UI.success("#{RuStore::RustoreLogger::PREFIX} All done! #{package_name} versionId=#{version_id} submitted to RuStore.")
+        UI.success("#{RustorePublish::RustoreLogger::PREFIX} All done! #{package_name} versionId=#{version_id} submitted to RuStore.")
       end
 
       # ── Parameter definitions ────────────────────────────────────────────────

@@ -1,10 +1,10 @@
 lib = File.expand_path("lib", __dir__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
-require "fastlane/plugin/rustore/version"
+require "fastlane/plugin/rustore_publish/version"
 
 Gem::Specification.new do |spec|
-  spec.name          = "fastlane-plugin-rustore"
-  spec.version       = Fastlane::RuStore::VERSION
+  spec.name          = "fastlane-plugin-rustore_publish"
+  spec.version       = Fastlane::RustorePublish::VERSION
   spec.author        = "RuStore Plugin Contributors"
   spec.email         = ""
 
@@ -15,7 +15,7 @@ Gem::Specification.new do |spec|
     main file + APK (Huawei/HMS) as secondary, staged rollouts, and full
     CI/CD logging including GitLab CI collapsible sections.
   DESC
-  spec.homepage      = "https://github.com/your-org/fastlane-plugin-rustore"
+  spec.homepage      = "https://github.com/your-org/fastlane-plugin-rustore_publish"
   spec.license       = "MIT"
 
   spec.files         = Dir["lib/**/*", "LICENSE", "README.md"]
