@@ -68,6 +68,57 @@ You will get two values:
 | `release_date` | `RUSTORE_RELEASE_DATE` | no | — | ISO 8601 datetime, only for `DELAYED` |
 | `rollout_percentage` | `RUSTORE_ROLLOUT_PERCENTAGE` | no | — | Staged rollout: allowed values `5, 10, 25, 50, 75, 100` |
 
+### Draft metadata (NEW — RuStore API v2)
+
+RuStore's `create-draft-version` endpoint accepts additional fields beyond release notes. When unset, RuStore inherits each value from the previously active version. **`developer_contacts` may be required** if your RuStore Console developer contacts have not been filled in — a missing value here causes `API request failed [400]: Developer contacts are not filled in`.
+
+| Parameter | Env var | Type | Description |
+|---|---|---|---|
+| `developer_contacts` | — | Hash | `{ email:, website:, vk_community: }` — at least one sub-key required |
+| `app_name` | `RUSTORE_APP_NAME` | String | App display name, max 50 chars |
+| `app_type` | `RUSTORE_APP_TYPE` | String | `GAMES` or `MAIN` |
+| `categories` | — | Array&lt;String&gt; | Up to 2 categories, e.g. `["news", "education"]` |
+| `age_legal` | `RUSTORE_AGE_LEGAL` | String | One of `0+`, `6+`, `12+`, `16+`, `18+` |
+| `short_description` | `RUSTORE_SHORT_DESCRIPTION` | String | Brief description, max 80 chars |
+| `full_description` | `RUSTORE_FULL_DESCRIPTION` | String | Full description, max 4000 chars |
+| `price_value` | `RUSTORE_PRICE_VALUE` | String | Price in kopecks as digits, e.g. `"8799"` for 87.99 RUB |
+| `seo_tag_ids` | — | Array&lt;Integer&gt; | Up to 5 search tag IDs |
+| `faq` | — | Array&lt;Hash&gt; | Up to 10 items, each `{ question: ≤120 chars, answer: ≤500 chars }` |
+
+Hash and Array parameters have no env-var binding — env vars carry strings only. If you need env-driven configuration, parse JSON yourself in your Fastfile:
+
+```ruby
+developer_contacts: JSON.parse(ENV.fetch("RUSTORE_DEVELOPER_CONTACTS"), symbolize_names: true)
+```
+
+**Example:**
+
+```ruby
+rustore_upload(
+  package_name:       "com.example.app",
+  key_id:             ENV["RUSTORE_KEY_ID"],
+  private_key:        ENV["RUSTORE_PRIVATE_KEY"],
+  aab_path:           "app/build/outputs/bundle/release/app-release.aab",
+
+  # Draft metadata (v2)
+  developer_contacts: {
+    email:        "support@example.com",
+    website:      "https://example.com",
+    vk_community: "https://vk.com/example"
+  },
+  app_name:           "Example App",
+  app_type:           "MAIN",
+  categories:         ["news", "education"],
+  age_legal:          "0+",
+  short_description:  "Best example app",
+  full_description:   "A longer description of what the app does and why people should install it...",
+  faq: [
+    { question: "How do I sign in?", answer: "Use your email and password." },
+    { question: "Is it free?",       answer: "Yes." }
+  ]
+)
+```
+
 ---
 
 ## Publish types
@@ -214,12 +265,11 @@ end
 **GitLab CI log output** (steps appear as collapsible sections):
 
 ```
-▶ [RuStore] Step 1/6: Authentication              ← click to expand
-▶ [RuStore] Step 2/6: Draft Management
-▶ [RuStore] Step 3/6: Uploading AAB (GMS/main)
-▶ [RuStore] Step 4/6: Uploading APK (HMS/secondary)
-▶ [RuStore] Step 5/6: Submitting for moderation
-▶ [RuStore] Step 6/6: Configuring publication
+▶ [RuStore] Step 1/5: Authentication              ← click to expand
+▶ [RuStore] Step 2/5: Draft Management
+▶ [RuStore] Step 3/5: Uploading AAB (GMS/main)
+▶ [RuStore] Step 4/5: Uploading APK (HMS/secondary)
+▶ [RuStore] Step 5/5: Submitting for moderation
 [RuStore] ✓ All done! com.example.app versionId=12345 submitted to RuStore.
 ```
 

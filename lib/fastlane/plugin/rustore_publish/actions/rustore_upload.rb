@@ -54,6 +54,19 @@ module Fastlane
         draft_meta[:publishDateTime] = release_date     if release_date
         draft_meta[:partialValue]    = rollout_percentage if rollout_percentage
 
+        # Draft metadata (RuStore API v2)
+        developer_contacts = params[:developer_contacts]
+        draft_meta[:developerContacts] = normalize_developer_contacts(developer_contacts) if developer_contacts
+        draft_meta[:appName]   = params[:app_name]  if params[:app_name]
+        draft_meta[:appType]   = params[:app_type]  if params[:app_type]
+        draft_meta[:ageLegal]  = params[:age_legal] if params[:age_legal]
+        draft_meta[:shortDescription] = params[:short_description] if params[:short_description]
+        draft_meta[:fullDescription]  = params[:full_description]  if params[:full_description]
+        draft_meta[:priceValue]       = params[:price_value]       if params[:price_value]
+        draft_meta[:categories] = params[:categories]  if params[:categories]
+        draft_meta[:seoTagIds]  = params[:seo_tag_ids] if params[:seo_tag_ids]
+        draft_meta[:faq] = params[:faq] if params[:faq]
+
         version_id = client.create_draft(package_name: package_name, **draft_meta)
         logger.success("Draft created (versionId=#{version_id})")
         logger.table([
@@ -263,6 +276,131 @@ module Fastlane
             verify_block: proc { |v|
               UI.user_error!("rollout_percentage must be one of: 5, 10, 25, 50, 75, 100") unless [5, 10, 25, 50, 75, 100].include?(v)
             }
+          ),
+
+          # ── Draft metadata (RuStore API v2) ──────────────────────────────
+          FastlaneCore::ConfigItem.new(
+            key:         :developer_contacts,
+            description: "Developer contact info Hash: { email:, website:, vk_community: } — at least one key required",
+            type:        Hash,
+            optional:    true,
+            verify_block: proc { |v|
+              UI.user_error!("developer_contacts must contain at least one of: email, website, vk_community") if v.empty?
+              allowed = %i[email website vk_community]
+              v.each_key do |k|
+                unless allowed.include?(k.to_sym)
+                  UI.user_error!("developer_contacts: unknown sub-key '#{k}' (accepted: #{allowed.join(', ')})")
+                end
+              end
+            }
+          ),
+          FastlaneCore::ConfigItem.new(
+            key:         :app_name,
+            env_name:    "RUSTORE_APP_NAME",
+            description: "App display name (max 50 chars)",
+            type:        String,
+            optional:    true,
+            verify_block: proc { |v|
+              UI.user_error!("app_name must not exceed 50 characters") if v.length > 50
+            }
+          ),
+          FastlaneCore::ConfigItem.new(
+            key:         :app_type,
+            env_name:    "RUSTORE_APP_TYPE",
+            description: "App type: GAMES or MAIN",
+            type:        String,
+            optional:    true,
+            verify_block: proc { |v|
+              UI.user_error!("app_type must be 'GAMES' or 'MAIN'") unless %w[GAMES MAIN].include?(v)
+            }
+          ),
+          FastlaneCore::ConfigItem.new(
+            key:         :age_legal,
+            env_name:    "RUSTORE_AGE_LEGAL",
+            description: "Age rating: 0+, 6+, 12+, 16+, or 18+",
+            type:        String,
+            optional:    true,
+            verify_block: proc { |v|
+              allowed = %w[0+ 6+ 12+ 16+ 18+]
+              UI.user_error!("age_legal must be one of: #{allowed.join(', ')}") unless allowed.include?(v)
+            }
+          ),
+          FastlaneCore::ConfigItem.new(
+            key:         :short_description,
+            env_name:    "RUSTORE_SHORT_DESCRIPTION",
+            description: "Brief description shown in app list (max 80 chars)",
+            type:        String,
+            optional:    true,
+            verify_block: proc { |v|
+              UI.user_error!("short_description must not exceed 80 characters") if v.length > 80
+            }
+          ),
+          FastlaneCore::ConfigItem.new(
+            key:         :full_description,
+            env_name:    "RUSTORE_FULL_DESCRIPTION",
+            description: "Full description on the app page (max 4000 chars)",
+            type:        String,
+            optional:    true,
+            verify_block: proc { |v|
+              UI.user_error!("full_description must not exceed 4000 characters") if v.length > 4000
+            }
+          ),
+          FastlaneCore::ConfigItem.new(
+            key:         :price_value,
+            env_name:    "RUSTORE_PRICE_VALUE",
+            description: "Price in kopecks as a string of digits, e.g. '8799' for 87.99 RUB",
+            type:        String,
+            optional:    true,
+            verify_block: proc { |v|
+              UI.user_error!("price_value must be a non-empty string of digits") unless v.is_a?(String) && v =~ /\A\d+\z/
+            }
+          ),
+          FastlaneCore::ConfigItem.new(
+            key:         :categories,
+            description: "App categories, e.g. ['news', 'education'] — max 2 elements",
+            type:        Array,
+            optional:    true,
+            verify_block: proc { |v|
+              UI.user_error!("categories must be an Array") unless v.is_a?(Array)
+              UI.user_error!("categories must not exceed 2 elements") if v.size > 2
+              v.each do |c|
+                unless c.is_a?(String) && !c.strip.empty?
+                  UI.user_error!("categories elements must be non-empty strings")
+                end
+              end
+            }
+          ),
+          FastlaneCore::ConfigItem.new(
+            key:         :seo_tag_ids,
+            description: "RuStore search tag IDs (max 5 integers)",
+            type:        Array,
+            optional:    true,
+            verify_block: proc { |v|
+              UI.user_error!("seo_tag_ids must be an Array") unless v.is_a?(Array)
+              UI.user_error!("seo_tag_ids must not exceed 5 elements") if v.size > 5
+              v.each do |t|
+                UI.user_error!("seo_tag_ids elements must be integers") unless t.is_a?(Integer)
+              end
+            }
+          ),
+          FastlaneCore::ConfigItem.new(
+            key:         :faq,
+            description: "FAQ items array (max 10), each Hash with question (max 120 chars) and answer (max 500 chars)",
+            type:        Array,
+            optional:    true,
+            verify_block: proc { |v|
+              UI.user_error!("faq must be an Array") unless v.is_a?(Array)
+              UI.user_error!("faq must not exceed 10 elements") if v.size > 10
+              v.each_with_index do |item, idx|
+                UI.user_error!("faq[#{idx}] must be a Hash") unless item.is_a?(Hash)
+                q = item[:question] || item["question"]
+                a = item[:answer]   || item["answer"]
+                UI.user_error!("faq[#{idx}] missing :question") if q.nil?
+                UI.user_error!("faq[#{idx}] missing :answer")   if a.nil?
+                UI.user_error!("faq[#{idx}].question must not exceed 120 characters") if q.length > 120
+                UI.user_error!("faq[#{idx}].answer must not exceed 500 characters")   if a.length > 500
+              end
+            }
           )
         ]
       end
@@ -348,6 +486,14 @@ module Fastlane
             "#{param_name} has unexpected extension '#{ext}' (expected '#{expected_ext}'): #{path}",
             hint: "Make sure you passed the correct file path"
           )
+        end
+      end
+
+      def self.normalize_developer_contacts(contacts)
+        map = { email: :email, website: :website, vk_community: :vkCommunity }
+        contacts.each_with_object({}) do |(k, v), out|
+          mapped = map[k.to_sym]
+          out[mapped] = v if mapped
         end
       end
     end
