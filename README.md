@@ -1,8 +1,10 @@
-# fastlane-plugin-rustore_publish
+# RuStore fastlane plugin — publish Android apps to RuStore from CI
 
 ![RuStore × fastlane — automated Android publishing](docs/assets/cover.jpg)
 
-Fastlane plugin for publishing Android applications to [RuStore](https://rustore.ru) — the Russian app store — via the [RuStore Public API](https://www.rustore.ru/help/work-with-rustore-api/api-upload-publication-app).
+Fastlane plugin for publishing Android applications to [RuStore](https://rustore.ru) — the Russian app store — via the [RuStore Public API](https://www.rustore.ru/help/work-with-rustore-api/api-upload-publication-app). Uses the new `public-api-m.rustore.ru` domain with the Russian Trusted Root CA bundled, so nothing has to be installed on the runner.
+
+Gem: `fastlane-plugin-rustore_publish` · Action: `rustore_upload`
 
 ## Features
 
