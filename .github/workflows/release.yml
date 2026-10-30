@@ -35,7 +35,22 @@ jobs:
             exit 1
           fi
 
-      - uses: rubygems/configure-rubygems-credentials@v1.0.0
+      # Exchanges the GitHub OIDC token for a short-lived RubyGems push key.
+      # Done by hand because the first push of a new gem must name the owning
+      # account (`owner`), and configure-rubygems-credentials has no such input.
+      # The owner ID is shown on rubygems.org → Pending Trusted Publishers.
+      - name: Get RubyGems API key (Trusted Publishing)
+        env:
+          RUBYGEMS_OWNER_ID: ${{ vars.RUBYGEMS_OWNER_ID }}
+        run: |
+          jwt=$(curl -sS --fail-with-body -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=rubygems.org" | jq -r .value)
+          echo "::add-mask::$jwt"
+          response=$(curl -sS --fail-with-body -X POST https://rubygems.org/api/v1/oidc/trusted_publisher/exchange_token \
+            --data-urlencode "jwt=$jwt" --data-urlencode "owner=$RUBYGEMS_OWNER_ID") || { echo "$response"; exit 1; }
+          key=$(echo "$response" | jq -r .rubygems_api_key)
+          echo "::add-mask::$key"
+          echo "GEM_HOST_API_KEY=$key" >> "$GITHUB_ENV"
 
       - name: Build and push
         run: |
