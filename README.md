@@ -1,5 +1,7 @@
 # fastlane-plugin-rustore_publish
 
+![RuStore × fastlane — automated Android publishing](docs/assets/cover.jpg)
+
 Fastlane plugin for publishing Android applications to [RuStore](https://rustore.ru) — the Russian app store — via the [RuStore Public API](https://www.rustore.ru/help/work-with-rustore-api/api-upload-publication-app).
 
 ## Features
