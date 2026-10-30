@@ -1,10 +1,42 @@
 # RuStore fastlane plugin — publish Android apps to RuStore from CI
 
+[![Gem Version](https://img.shields.io/gem/v/fastlane-plugin-rustore_publish)](https://rubygems.org/gems/fastlane-plugin-rustore_publish)
+[![Downloads](https://img.shields.io/gem/dt/fastlane-plugin-rustore_publish)](https://rubygems.org/gems/fastlane-plugin-rustore_publish)
+[![fastlane Plugin Badge](https://rawcdn.githack.com/fastlane/fastlane/master/fastlane/assets/plugin-badge.svg)](https://rubygems.org/gems/fastlane-plugin-rustore_publish)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 ![RuStore × fastlane — automated Android publishing](docs/assets/cover.jpg)
 
 Fastlane plugin for publishing Android applications to [RuStore](https://rustore.ru) — the Russian app store — via the [RuStore Public API](https://www.rustore.ru/help/work-with-rustore-api/api-upload-publication-app). Uses the new `public-api-m.rustore.ru` domain with the Russian Trusted Root CA bundled, so nothing has to be installed on the runner.
 
 Gem: `fastlane-plugin-rustore_publish` · Action: `rustore_upload`
+
+## Quick start
+
+```sh
+fastlane add_plugin rustore_publish
+```
+
+```ruby
+# fastlane/Fastfile
+lane :deploy_rustore do
+  rustore_upload(
+    package_name: "com.example.app",
+    key_id:       ENV["RUSTORE_KEY_ID"],
+    private_key:  ENV["RUSTORE_PRIVATE_KEY"],
+    aab_path:     "app/build/outputs/bundle/release/app-release.aab",
+    whats_new:    "Bug fixes and improvements"
+  )
+end
+```
+
+The key comes from RuStore Console → Company → API RuStore, see [Setup](#setup-rustore-api-credentials).
+
+## По-русски
+
+Плагин fastlane для публикации Android-приложений в RuStore из CI: создаёт черновик, загружает AAB и HMS APK, отправляет на модерацию. Работает через новый домен `public-api-m.rustore.ru`, на который RuStore переводит Public API; корневой сертификат Минцифры уже внутри плагина, ставить его на раннер не нужно. В логах CI видно, сколько шла отправка файла и сколько RuStore его проверял, а ошибки (таймаут, TLS, 504, новые чувствительные разрешения) приходят с подсказкой, что делать.
+
+Установка — `fastlane add_plugin rustore_publish`, пример — в [Quick start](#quick-start) выше. Вопросы и баги — в [Issues](https://github.com/gorban-dev/rustore-fastlane-plugin/issues), можно на русском.
 
 ## Features
 
