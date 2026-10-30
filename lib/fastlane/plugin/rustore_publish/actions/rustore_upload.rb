@@ -23,7 +23,7 @@ module Fastlane
         auth.refresh!
         logger.success("JWE token obtained (valid 900s, auto-refresh enabled)")
 
-        client       = RustorePublish::RustoreClient.new(auth: auth, logger: logger)
+        client       = RustorePublish::RustoreClient.new(auth: auth, logger: logger, upload_timeout: params[:upload_timeout])
         package_name = params[:package_name]
 
         # ── Step 2: Draft Management ───────────────────────────────────────────
@@ -76,7 +76,9 @@ module Fastlane
           ["Moderator note", moder_info || "(not set)"],
           ["Publish type",   publish_type],
           ["Rollout",        rollout_percentage ? "#{rollout_percentage}%" : "100%"],
-          ["Release date",   release_date || "(not set)"]
+          ["Release date",   release_date || "(not set)"],
+          ["Update priority", params[:update_priority]],
+          ["Upload timeout", "#{params[:upload_timeout]}s"]
         ])
 
         # ── Step 3: Upload primary build ───────────────────────────────────────
@@ -153,7 +155,7 @@ module Fastlane
 
         # ── Step 5: Submit for moderation ─────────────────────────────────────
         logger.step(5, "Submitting for moderation")
-        client.submit_for_review(package_name: package_name, version_id: version_id)
+        client.submit_for_review(package_name: package_name, version_id: version_id, update_priority: params[:update_priority])
 
         case publish_type
         when "INSTANTLY"
@@ -276,6 +278,26 @@ module Fastlane
             verify_block: proc { |v|
               UI.user_error!("rollout_percentage must be one of: 5, 10, 25, 50, 75, 100") unless [5, 10, 25, 50, 75, 100].include?(v)
             }
+          ),
+          FastlaneCore::ConfigItem.new(
+            key:           :update_priority,
+            env_name:      "RUSTORE_UPDATE_PRIORITY",
+            description:   "In-app update priority sent with the moderation request: 0 (min) to 5 (max)",
+            default_value: 0,
+            type:          Integer,
+            optional:      true,
+            verify_block:  proc { |v| UI.user_error!("update_priority must be between 0 and 5") unless (0..5).cover?(v) }
+          ),
+
+          # ── Network ────────────────────────────────────────────────────────
+          FastlaneCore::ConfigItem.new(
+            key:           :upload_timeout,
+            env_name:      "RUSTORE_UPLOAD_TIMEOUT",
+            description:   "Seconds to wait for RuStore to answer an AAB/APK upload; RuStore checks the file before answering",
+            default_value: RustorePublish::RustoreClient::DEFAULT_UPLOAD_TIMEOUT,
+            type:          Integer,
+            optional:      true,
+            verify_block:  proc { |v| UI.user_error!("upload_timeout must be a positive number of seconds") unless v > 0 }
           ),
 
           # ── Draft metadata (RuStore API v2) ──────────────────────────────

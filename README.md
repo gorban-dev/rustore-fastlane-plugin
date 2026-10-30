@@ -5,19 +5,26 @@ Fastlane plugin for publishing Android applications to [RuStore](https://rustore
 ## Features
 
 - Upload **AAB** (Google/GMS, main artifact) and **APK** (Huawei/HMS, secondary) in a single version
-- Full publish workflow: authenticate → create draft → upload files → submit for moderation → configure publication
+- Full publish workflow: authenticate → create draft (with publication settings) → upload files → submit for moderation
 - The pipeline always finishes immediately after submission — no waiting for moderation
 - **GitLab CI** collapsible log sections (foldable blocks in Pipeline UI)
 - Staged rollout support (`rollout_percentage`)
 - Scheduled publishing (`DELAYED` + `release_date`)
 - Auto-cleanup of existing drafts before creating a new one
 - JWE token auto-refresh (900 s TTL)
+- Works with the `public-api-m.rustore.ru` domain; the Russian Trusted Root CA is bundled, nothing to install on the runner
+- CI-friendly upload logs: send time, a heartbeat while RuStore checks the file, response time, detected permissions and SDKs
 
 ## Requirements
 
 - Fastlane ≥ 2.200.0
 - Ruby ≥ 2.6
 - At least **one active published version** must already exist in RuStore Console (API requirement)
+- Outbound HTTPS to `public-api-m.rustore.ru:443`
+
+### RuStore domain and certificate
+
+RuStore moved the Public API from `public-api.rustore.ru` to `public-api-m.rustore.ru` ([announcement](https://www.rustore.ru/developer/blog/rustore-obnovlyaet-sertifikaty-i-domeny-chto-nuzhno-sdelat-razrabotchikam)). The new host is signed by the Russian Trusted Root CA, which is missing from the default OS and Ruby trust stores. The plugin ships that root (`lib/fastlane/plugin/rustore_publish/certs/russian_trusted_root_ca.crt`, from [Gosuslugi](https://www.gosuslugi.ru/crt), SHA-256 `D2:6D:2D:02:31:B7:C3:9F:92:CC:73:85:12:BA:54:10:35:19:E4:40:5D:68:B5:BD:70:3E:97:88:CA:8E:CF:31`) and trusts it in addition to the system roots, for plugin requests only.
 
 ---
 
@@ -67,6 +74,8 @@ You will get two values:
 | `publish_type` | `RUSTORE_PUBLISH_TYPE` | no | `INSTANTLY` | `INSTANTLY` / `MANUAL` / `DELAYED` |
 | `release_date` | `RUSTORE_RELEASE_DATE` | no | — | ISO 8601 datetime, only for `DELAYED` |
 | `rollout_percentage` | `RUSTORE_ROLLOUT_PERCENTAGE` | no | — | Staged rollout: allowed values `5, 10, 25, 50, 75, 100` |
+| `update_priority` | `RUSTORE_UPDATE_PRIORITY` | no | `0` | In-app update priority sent with the moderation request, `0`–`5` |
+| `upload_timeout` | `RUSTORE_UPLOAD_TIMEOUT` | no | `900` | Seconds to wait for RuStore to answer an AAB/APK upload. RuStore checks the file (permissions, SDKs) before answering |
 
 ### Draft metadata (NEW — RuStore API v2)
 
@@ -273,6 +282,18 @@ end
 [RuStore] ✓ All done! com.example.app versionId=12345 submitted to RuStore.
 ```
 
+**Upload step output.** RuStore answers an upload only after it has checked the file, so the step logs when the file was sent and keeps a heartbeat until the answer arrives:
+
+```
+[RuStore] Sending app-release.aab (32.5 MB)
+[RuStore] app-release.aab sent in 1.2s, waiting for RuStore to check it
+[RuStore] Waiting for RuStore response: 60s / 900s
+[RuStore] RuStore responded in 102s
+[RuStore] Permissions detected by RuStore: android.permission.CAMERA, android.permission.ACCESS_FINE_LOCATION
+[RuStore] SDKs detected by RuStore: analytics: com.google.firebase.analytics
+[RuStore] ✓ AAB uploaded successfully
+```
+
 ---
 
 ### GitHub Actions
@@ -389,7 +410,11 @@ bundle exec fastlane deploy_rustore --verbose
 | `API request failed [404]` | Package not found | Verify `package_name`; at least 1 active version must exist in RuStore Console |
 | `API request failed [403]` | Key lacks permissions | Ensure the key has access to the required API methods for your app in Console |
 | `version_code must be greater than current active` | Old build uploaded | Increment `versionCode` in `build.gradle` |
-| `Moderation declined` | RuStore reviewer rejected the update | Check reviewer comments in RuStore Console |
+| `RuStore did not respond to the upload of ... within 900s` | RuStore is still checking the file | Rerun the lane (the draft is replaced); if it repeats, raise `upload_timeout` |
+| `API request failed [504] ... non-JSON response` | RuStore gateway timeout | Failure on the RuStore side; rerun the lane |
+| `TLS handshake with public-api-m.rustore.ru failed` | Certificate chain not trusted, often a TLS-inspecting proxy | Check the proxy and `SSL_CERT_FILE` on the runner |
+| `Could not connect to public-api-m.rustore.ru` | DNS, proxy or firewall | Check network access from the runner to port 443 |
+| `APK/AAB contains new sensitive permissions` | The build declares new sensitive permissions | Upload the file in RuStore Console and fill in the permission declaration |
 
 ---
 

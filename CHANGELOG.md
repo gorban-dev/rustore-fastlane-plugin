@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] — 2026-10-30
+
+### Breaking
+
+- Public API host changed to `public-api-m.rustore.ru`, following RuStore's
+  domain migration. The old `public-api.rustore.ru` is no longer used.
+- Removed `RustoreClient` methods the action never called and whose endpoints
+  have changed in the RuStore docs: `wait_for_moderation`, `version_status`,
+  `configure_publication`, `publish`, `upload_icon`, `upload_screenshot`.
+- Removed `RustoreLogger#progress`; the percentage bar reported bytes handed
+  to the socket, not bytes accepted by RuStore.
+
+### Added
+
+- Bundled Russian Trusted Root CA, trusted on top of the system roots for
+  plugin requests. Nothing to install on CI runners.
+- `upload_timeout` (`RUSTORE_UPLOAD_TIMEOUT`, default 900 s) — how long to wait
+  for RuStore to answer an AAB/APK upload. Other requests keep 300 s.
+- `update_priority` (`RUSTORE_UPDATE_PRIORITY`, `0`–`5`, default `0`).
+- Upload logs: send time, a heartbeat every 60 s while RuStore checks the
+  file, response time, permissions and SDKs RuStore detected in the file.
+- Readable errors for timeouts, TLS failures, connection failures, 5xx with
+  non-JSON bodies and the "new sensitive permissions" / "illegal permissions"
+  upload rejections, each with a hint.
+
+### Fixed
+
+- An AAB/APK upload that RuStore answered after more than 300 s failed with a
+  raw `Faraday::TimeoutError` stack trace. The wait is now `upload_timeout`
+  and a timeout is reported with the file, versionId and a hint.
+- The moderation request sent the priority in the JSON body; RuStore expects
+  the `priorityUpdate` query parameter, so the value was ignored.
+- Existing draft lookup now filters with `versionStatuses=DRAFT` instead of
+  scanning the first page of release versions.
+
 ## [0.2.0] — 2026-05-13
 
 ### Breaking
@@ -65,5 +100,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   AAB and HMS APK, submit for moderation. Multi-file versions, staged rollout,
   scheduled releases, GitLab CI collapsible log sections.
 
+[0.3.0]: https://github.com/gorban-dev/rustore-fastlane-plugin/releases/tag/v0.3.0
 [0.2.0]: https://github.com/gorban-dev/rustore-fastlane-plugin/releases/tag/v0.2.0
 [0.1.0]: https://github.com/gorban-dev/rustore-fastlane-plugin/releases/tag/v0.1.0

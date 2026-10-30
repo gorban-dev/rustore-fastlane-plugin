@@ -4,6 +4,7 @@ require "net/http"
 require "json"
 require "uri"
 require_relative "rustore_logger"
+require_relative "rustore_endpoint"
 
 module Fastlane
   module RustorePublish
@@ -19,7 +20,6 @@ module Fastlane
     #
     # Reference: https://www.rustore.ru/help/en/work-with-rustore-api/api-authorization-token
     class RustoreAuth
-      AUTH_URL       = "https://public-api.rustore.ru/public/auth"
       TOKEN_TTL      = 900  # seconds (as documented by RuStore)
       REFRESH_BEFORE = 60   # refresh the token this many seconds before expiry
 
@@ -75,19 +75,38 @@ module Fastlane
 
       # POST auth body to RuStore and return the JWE token string.
       def fetch_jwe_token
-        uri = URI(AUTH_URL)
+        uri = URI(RustoreEndpoint::AUTH_URL)
 
         request = Net::HTTP::Post.new(uri)
         request["Content-Type"] = "application/json"
         request.body = JSON.generate(build_auth_body)
 
-        response = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true) do |http|
+        response = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true, cert_store: RustoreEndpoint.cert_store) do |http|
           http.read_timeout = 30
           http.open_timeout = 10
           http.request(request)
         end
 
         handle_auth_response(response)
+      rescue OpenSSL::SSL::SSLError => e
+        @logger.error(
+          "TLS handshake with #{RustoreEndpoint::HOST} failed: #{e.message}",
+          hint: "The plugin trusts the system roots plus the bundled Russian Trusted Root CA. " \
+                "Check that no proxy replaces the certificate and that the system CA store is readable (SSL_CERT_FILE)",
+          raise_error: true
+        )
+      rescue Net::OpenTimeout, Net::ReadTimeout => e
+        @logger.error(
+          "RuStore did not respond to the auth request: #{e.class}",
+          hint: "Rerun the lane; if it keeps failing, check network access to #{RustoreEndpoint::HOST}:443",
+          raise_error: true
+        )
+      rescue SocketError, SystemCallError => e
+        @logger.error(
+          "Could not connect to #{RustoreEndpoint::HOST}: #{e.message}",
+          hint: "Check DNS, proxy and firewall from this machine to #{RustoreEndpoint::HOST}:443",
+          raise_error: true
+        )
       end
 
       def handle_auth_response(response)

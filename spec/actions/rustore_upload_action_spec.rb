@@ -15,7 +15,7 @@ RSpec.describe Fastlane::Actions::RustoreUploadAction do
   def stub_full_workflow
     stub_auth_success
 
-    stub_request(:get, api("application/#{TEST_PACKAGE}/version"))
+    stub_request(:get, api("application/#{TEST_PACKAGE}/version?versionStatuses=DRAFT"))
       .to_return(status: 200,
                  body: JSON.generate({ code: "OK", body: { content: [] } }),
                  headers: { "Content-Type" => "application/json" })
@@ -33,7 +33,7 @@ RSpec.describe Fastlane::Actions::RustoreUploadAction do
       .to_return(status: 200, body: JSON.generate({ code: "OK", body: {} }),
                  headers: { "Content-Type" => "application/json" })
 
-    stub_request(:post, api("application/#{TEST_PACKAGE}/version/#{TEST_VERSION_ID}/commit"))
+    stub_request(:post, api("application/#{TEST_PACKAGE}/version/#{TEST_VERSION_ID}/commit?priorityUpdate=0"))
       .to_return(status: 200, body: JSON.generate({ code: "OK", body: {} }),
                  headers: { "Content-Type" => "application/json" })
   end
@@ -47,8 +47,7 @@ RSpec.describe Fastlane::Actions::RustoreUploadAction do
           private_key:  #{rsa_pem.inspect},
           aab_path:     '#{aab_file.path}',
           hms_apk_path: '#{apk_file.path}',
-          publish_type: 'INSTANTLY'
-          #{extra_params}
+          publish_type: 'INSTANTLY'#{extra_params}
         )
       end
     LANE
@@ -87,7 +86,7 @@ RSpec.describe Fastlane::Actions::RustoreUploadAction do
     it "submits for moderation" do
       run_lane
       expect(WebMock).to have_requested(
-        :post, api("application/#{TEST_PACKAGE}/version/#{TEST_VERSION_ID}/commit")
+        :post, api("application/#{TEST_PACKAGE}/version/#{TEST_VERSION_ID}/commit?priorityUpdate=0")
       )
     end
 
@@ -171,7 +170,7 @@ RSpec.describe Fastlane::Actions::RustoreUploadAction do
     before do
       stub_auth_success
 
-      stub_request(:get, api("application/#{TEST_PACKAGE}/version"))
+      stub_request(:get, api("application/#{TEST_PACKAGE}/version?versionStatuses=DRAFT"))
         .to_return(
           status: 200,
           body: JSON.generate({ code: "OK",
@@ -192,7 +191,7 @@ RSpec.describe Fastlane::Actions::RustoreUploadAction do
         .to_return(status: 200, body: JSON.generate({ code: "OK", body: {} }),
                    headers: { "Content-Type" => "application/json" })
 
-      stub_request(:post, api("application/#{TEST_PACKAGE}/version/#{TEST_VERSION_ID}/commit"))
+      stub_request(:post, api("application/#{TEST_PACKAGE}/version/#{TEST_VERSION_ID}/commit?priorityUpdate=0"))
         .to_return(status: 200, body: JSON.generate({ code: "OK", body: {} }),
                    headers: { "Content-Type" => "application/json" })
     end
@@ -216,7 +215,7 @@ RSpec.describe Fastlane::Actions::RustoreUploadAction do
     it "raises when neither aab_path nor apk_path is provided" do
       stub_auth_success
 
-      stub_request(:get, api("application/#{TEST_PACKAGE}/version"))
+      stub_request(:get, api("application/#{TEST_PACKAGE}/version?versionStatuses=DRAFT"))
         .to_return(status: 200,
                    body: JSON.generate({ code: "OK", body: { content: [] } }),
                    headers: { "Content-Type" => "application/json" })
@@ -237,6 +236,40 @@ RSpec.describe Fastlane::Actions::RustoreUploadAction do
           end
         LANE
       end.to raise_error(FastlaneCore::Interface::FastlaneError, /No build file provided/)
+    end
+
+    it "rejects update_priority outside 0..5" do
+      expect { run_lane(", update_priority: 6") }
+        .to raise_error(FastlaneCore::Interface::FastlaneError, /update_priority/)
+    end
+
+    it "rejects a non-positive upload_timeout" do
+      expect { run_lane(", upload_timeout: 0") }
+        .to raise_error(FastlaneCore::Interface::FastlaneError, /upload_timeout/)
+    end
+  end
+
+  describe "update_priority" do
+    before { stub_full_workflow }
+
+    it "passes update_priority to the commit request" do
+      stub_request(:post, api("application/#{TEST_PACKAGE}/version/#{TEST_VERSION_ID}/commit?priorityUpdate=5"))
+        .to_return(status: 200, body: JSON.generate({ code: "OK", body: {} }),
+                   headers: { "Content-Type" => "application/json" })
+      run_lane(", update_priority: 5")
+      expect(WebMock).to have_requested(
+        :post, api("application/#{TEST_PACKAGE}/version/#{TEST_VERSION_ID}/commit?priorityUpdate=5")
+      )
+    end
+  end
+
+  describe "upload_timeout" do
+    before { stub_full_workflow }
+
+    it "passes upload_timeout to the client" do
+      expect(Fastlane::RustorePublish::RustoreClient).to receive(:new)
+        .with(hash_including(upload_timeout: 1200)).and_call_original
+      run_lane(", upload_timeout: 1200")
     end
   end
 
@@ -269,7 +302,7 @@ RSpec.describe Fastlane::Actions::RustoreUploadAction do
   describe "developer_contacts validation" do
     before do
       stub_auth_success
-      stub_request(:get, api("application/#{TEST_PACKAGE}/version"))
+      stub_request(:get, api("application/#{TEST_PACKAGE}/version?versionStatuses=DRAFT"))
         .to_return(status: 200, body: JSON.generate({ code: "OK", body: { content: [] } }),
                    headers: { "Content-Type" => "application/json" })
     end

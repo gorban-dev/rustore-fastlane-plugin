@@ -26,6 +26,27 @@ RSpec.describe Fastlane::RustorePublish::RustoreAuth do
       end
     end
 
+    context "when the network fails" do
+      it "explains a TLS failure" do
+        stub_request(:post, RUSTORE_AUTH_URL).to_raise(OpenSSL::SSL::SSLError.new("certificate verify failed"))
+        expect { auth.token }.to raise_error(
+          FastlaneCore::Interface::FastlaneError, /TLS.*public-api-m\.rustore\.ru.*Russian Trusted Root CA/m
+        )
+      end
+
+      it "explains a timeout" do
+        stub_request(:post, RUSTORE_AUTH_URL).to_timeout
+        expect { auth.token }.to raise_error(FastlaneCore::Interface::FastlaneError, /did not respond/)
+      end
+
+      it "explains a connection failure" do
+        stub_request(:post, RUSTORE_AUTH_URL).to_raise(SocketError.new("getaddrinfo failed"))
+        expect { auth.token }.to raise_error(
+          FastlaneCore::Interface::FastlaneError, /Could not connect to public-api-m\.rustore\.ru/
+        )
+      end
+    end
+
     context "when response is missing jwe field" do
       before do
         stub_request(:post, RUSTORE_AUTH_URL)

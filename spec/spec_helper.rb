@@ -36,8 +36,8 @@ end
 
 # ── Shared test data ──────────────────────────────────────────────────────────
 
-RUSTORE_AUTH_URL = "https://public-api.rustore.ru/public/auth"
-RUSTORE_API_BASE = "https://public-api.rustore.ru/public/v1"
+RUSTORE_AUTH_URL = "https://public-api-m.rustore.ru/public/auth"
+RUSTORE_API_BASE = "https://public-api-m.rustore.ru/public/v1"
 TEST_PACKAGE     = "com.example.testapp"
 TEST_VERSION_ID  = 42
 TEST_JWE_TOKEN   = "eyJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMjU2R0NNIn0.test"
@@ -69,13 +69,14 @@ def stub_auth_failure(status: 401, message: "Invalid key")
 end
 
 # A logger double where #error raises FastlaneError (mirrors real behavior).
+# The hint is appended to the exception message so specs can match it.
 def raising_logger_double
   logger = instance_double(
     Fastlane::RustorePublish::RustoreLogger,
-    verbose: nil, info: nil, success: nil, warning: nil, table: nil, step: nil, progress: nil
+    verbose: nil, info: nil, success: nil, warning: nil, table: nil, step: nil
   )
-  allow(logger).to receive(:error) do |msg, **|
-    raise_fastlane_error(msg)
+  allow(logger).to receive(:error) do |msg, hint: nil, **|
+    raise_fastlane_error(hint ? "#{msg}\n→ #{hint}" : msg)
   end
   logger
 end

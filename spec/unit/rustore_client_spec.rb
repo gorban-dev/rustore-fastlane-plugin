@@ -56,7 +56,7 @@ RSpec.describe Fastlane::RustorePublish::RustoreClient do
       let(:draft) { { "publishId" => 99, "versionStatus" => "DRAFT" } }
 
       before do
-        stub_request(:get, api_url("application/#{TEST_PACKAGE}/version"))
+        stub_request(:get, api_url("application/#{TEST_PACKAGE}/version?versionStatuses=DRAFT"))
           .to_return(
             status:  200,
             body:    JSON.generate({ code: "OK", body: { content: [draft] } }),
@@ -72,7 +72,7 @@ RSpec.describe Fastlane::RustorePublish::RustoreClient do
 
     context "when no DRAFT exists" do
       before do
-        stub_request(:get, api_url("application/#{TEST_PACKAGE}/version"))
+        stub_request(:get, api_url("application/#{TEST_PACKAGE}/version?versionStatuses=DRAFT"))
           .to_return(
             status:  200,
             body:    JSON.generate({ code: "OK", body: { content: [] } }),
@@ -137,7 +137,7 @@ RSpec.describe Fastlane::RustorePublish::RustoreClient do
 
   describe "#submit_for_review" do
     before do
-      stub_request(:post, api_url("application/#{TEST_PACKAGE}/version/#{TEST_VERSION_ID}/commit"))
+      stub_request(:post, %r{application/#{TEST_PACKAGE}/version/#{TEST_VERSION_ID}/commit})
         .to_return(
           status:  200,
           body:    JSON.generate({ code: "OK", body: {} }),
@@ -145,56 +145,114 @@ RSpec.describe Fastlane::RustorePublish::RustoreClient do
         )
     end
 
-    it "posts to the commit endpoint" do
+    it "posts to the commit endpoint with priorityUpdate=0 by default" do
       client.submit_for_review(package_name: TEST_PACKAGE, version_id: TEST_VERSION_ID)
       expect(WebMock).to have_requested(
-        :post, api_url("application/#{TEST_PACKAGE}/version/#{TEST_VERSION_ID}/commit")
+        :post, api_url("application/#{TEST_PACKAGE}/version/#{TEST_VERSION_ID}/commit?priorityUpdate=0")
+      )
+    end
+
+    it "passes update_priority as the priorityUpdate query param" do
+      client.submit_for_review(package_name: TEST_PACKAGE, version_id: TEST_VERSION_ID, update_priority: 3)
+      expect(WebMock).to have_requested(
+        :post, api_url("application/#{TEST_PACKAGE}/version/#{TEST_VERSION_ID}/commit?priorityUpdate=3")
       )
     end
   end
 
-  # ── Moderation polling ────────────────────────────────────────────────────
+  # ── Upload diagnostics ────────────────────────────────────────────────────
 
-  describe "#wait_for_moderation" do
-    def stub_version_status(status, times: 1)
-      stub_request(:get, api_url("application/#{TEST_PACKAGE}/version/#{TEST_VERSION_ID}"))
-        .to_return(
-          status:  200,
-          body:    JSON.generate({ code: "OK", body: { versionStatus: status } }),
-          headers: { "Content-Type" => "application/json" }
-        ).times(times)
+  describe "upload logging and failures" do
+    let(:aab_file) { Tempfile.new(["app", ".aab"]).tap { |f| f.write("aab"); f.rewind } }
+    let(:aab_url)  { api_url("application/#{TEST_PACKAGE}/version/#{TEST_VERSION_ID}/aab") }
+    after { aab_file.close; aab_file.unlink }
+
+    def upload(c = client)
+      c.upload_aab(package_name: TEST_PACKAGE, version_id: TEST_VERSION_ID, file_path: aab_file.path)
     end
 
-    it "returns immediately when already APPROVED" do
-      stub_version_status("APPROVED")
-      allow(client).to receive(:sleep)
-      result = client.wait_for_moderation(
-        package_name: TEST_PACKAGE, version_id: TEST_VERSION_ID,
-        timeout: 60, poll_interval: 1
+    it "logs permissions and SDKs detected by RuStore" do
+      stub_request(:post, aab_url).to_return(
+        status: 200,
+        body:   JSON.generate({
+          code: "OK",
+          body: {
+            permissions:      { location: [{ permission: "android.permission.ACCESS_FINE_LOCATION" }] },
+            autoDetectedSdks: { ads: ["com.google.android.gms.ads"], payment: [] }
+          }
+        })
       )
-      expect(result).to eq("APPROVED")
+      upload
+      expect(logger).to have_received(:info).with(/android\.permission\.ACCESS_FINE_LOCATION/)
+      expect(logger).to have_received(:info).with(/ads: com\.google\.android\.gms\.ads/)
     end
 
-    it "polls until APPROVED" do
-      stub_version_status("IN_REVIEW", times: 2)
-      stub_version_status("APPROVED",  times: 1)
-      allow(client).to receive(:sleep)
-      result = client.wait_for_moderation(
-        package_name: TEST_PACKAGE, version_id: TEST_VERSION_ID,
-        timeout: 120, poll_interval: 1
+    it "logs how long RuStore took to respond" do
+      stub_request(:post, aab_url).to_return(status: 200, body: JSON.generate({ code: "OK", body: {} }))
+      upload
+      expect(logger).to have_received(:info).with(/RuStore responded in \d+s/)
+    end
+
+    it "logs a heartbeat while waiting for the response" do
+      stub_request(:post, aab_url).to_return do
+        sleep 0.3
+        { status: 200, body: JSON.generate({ code: "OK", body: {} }) }
+      end
+      upload(described_class.new(auth: auth, logger: logger, wait_log_interval: 0.05))
+      expect(logger).to have_received(:info).with(/Waiting for RuStore response/).at_least(:once)
+    end
+
+    it "explains a read timeout and stops the heartbeat thread" do
+      stub_request(:post, aab_url).to_raise(Net::ReadTimeout)
+      threads_before = Thread.list.size
+      expect { upload }.to raise_error(
+        FastlaneCore::Interface::FastlaneError,
+        /did not respond to the upload of app.*\.aab within 900s \(versionId=#{TEST_VERSION_ID}\).*upload_timeout/m
       )
-      expect(result).to eq("APPROVED")
+      expect(Thread.list.size).to eq(threads_before)
     end
 
-    it "raises on DECLINED status" do
-      stub_version_status("DECLINED")
-      allow(client).to receive(:sleep)
-      expect do
-        client.wait_for_moderation(
-          package_name: TEST_PACKAGE, version_id: TEST_VERSION_ID,
-          timeout: 60, poll_interval: 1
-        )
-      end.to raise_error(FastlaneCore::Interface::FastlaneError, /Moderation declined/)
+    it "uses the configured upload timeout in the message" do
+      stub_request(:post, aab_url).to_raise(Net::ReadTimeout)
+      expect { upload(described_class.new(auth: auth, logger: logger, upload_timeout: 1200)) }
+        .to raise_error(FastlaneCore::Interface::FastlaneError, /within 1200s/)
+    end
+
+    it "explains a 504 with an HTML body without dumping the HTML" do
+      stub_request(:post, aab_url).to_return(status: 504, body: "<html><body>upstream request timeout</body></html>")
+      expect { upload }.to raise_error(FastlaneCore::Interface::FastlaneError) { |e|
+        expect(e.message).to include("[504]")
+        expect(e.message).to include("RuStore side")
+        expect(e.message).not_to include("<html>")
+      }
+    end
+
+    it "hints at the Console declaration for new sensitive permissions" do
+      stub_request(:post, aab_url).to_return(
+        status: 400,
+        body:   JSON.generate({
+          code:    "ERROR",
+          message: "APK/AAB contains new sensitive permissions: [android.permission.READ_CONTACTS]. " \
+                   "Please, upload APK/AAB via the development console and declare permissions."
+        })
+      )
+      expect { upload }.to raise_error(FastlaneCore::Interface::FastlaneError, /RuStore Console/)
+    end
+  end
+
+  describe "network errors" do
+    let(:drafts_url) { api_url("application/#{TEST_PACKAGE}/version?versionStatuses=DRAFT") }
+
+    it "explains a TLS failure" do
+      stub_request(:get, drafts_url).to_raise(OpenSSL::SSL::SSLError.new("certificate verify failed"))
+      expect { client.find_existing_draft(package_name: TEST_PACKAGE) }
+        .to raise_error(FastlaneCore::Interface::FastlaneError, /TLS.*public-api-m\.rustore\.ru.*Russian Trusted Root CA/m)
+    end
+
+    it "explains a connection failure" do
+      stub_request(:get, drafts_url).to_raise(SocketError.new("getaddrinfo: nodename nor servname provided"))
+      expect { client.find_existing_draft(package_name: TEST_PACKAGE) }
+        .to raise_error(FastlaneCore::Interface::FastlaneError, /Could not connect to public-api-m\.rustore\.ru/)
     end
   end
 
@@ -202,7 +260,7 @@ RSpec.describe Fastlane::RustorePublish::RustoreClient do
 
   describe "HTTP error handling" do
     it "raises with a meaningful message on 404" do
-      stub_request(:get, api_url("application/#{TEST_PACKAGE}/version"))
+      stub_request(:get, api_url("application/#{TEST_PACKAGE}/version?versionStatuses=DRAFT"))
         .to_return(
           status:  404,
           body:    JSON.generate({ message: "Not found" }),
