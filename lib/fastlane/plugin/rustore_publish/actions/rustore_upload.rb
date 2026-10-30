@@ -453,7 +453,7 @@ module Fastlane
       end
 
       def self.authors
-        ["Your Org"]
+        ["Sergey Gorban"]
       end
 
       def self.example_usage

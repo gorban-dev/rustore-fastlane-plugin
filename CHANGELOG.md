@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] — 2026-10-30
+
+First release published to RubyGems; no behaviour changes since 0.3.0.
+
+### Fixed
+
+- Gem metadata: homepage pointed to a placeholder repository; added source
+  code, changelog and bug tracker links; real author name.
+
 ## [0.3.0] — 2026-10-30
 
 ### Breaking
@@ -100,6 +109,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   AAB and HMS APK, submit for moderation. Multi-file versions, staged rollout,
   scheduled releases, GitLab CI collapsible log sections.
 
+[0.3.1]: https://github.com/gorban-dev/rustore-fastlane-plugin/releases/tag/v0.3.1
 [0.3.0]: https://github.com/gorban-dev/rustore-fastlane-plugin/releases/tag/v0.3.0
 [0.2.0]: https://github.com/gorban-dev/rustore-fastlane-plugin/releases/tag/v0.2.0
 [0.1.0]: https://github.com/gorban-dev/rustore-fastlane-plugin/releases/tag/v0.1.0
