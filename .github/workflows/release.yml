@@ -8,6 +8,8 @@ name: Publish gem
 on:
   release:
     types: [published]
+  # Manual retry, e.g. when the release run failed for reasons outside the code
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -28,6 +30,7 @@ jobs:
         run: bundle exec rspec
 
       - name: Check that the tag matches the gem version
+        if: github.event_name == 'release'
         run: |
           version=$(ruby -Ilib -e 'require "fastlane/plugin/rustore_publish/version"; print Fastlane::RustorePublish::VERSION')
           if [ "v$version" != "$GITHUB_REF_NAME" ]; then
