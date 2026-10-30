@@ -432,6 +432,12 @@ bundle exec rspec                         # run tests
 bundle exec rspec --format documentation  # verbose output
 ```
 
+### Releasing
+
+1. Bump `VERSION` in `lib/fastlane/plugin/rustore_publish/version.rb`, run `bundle install` to update `Gemfile.lock`, add a `CHANGELOG.md` entry, push to `main`.
+2. Publish a GitHub release with tag `vX.Y.Z` matching `VERSION`.
+3. The [`Publish gem`](.github/workflows/release.yml) workflow runs the specs, checks the tag against `VERSION` and pushes the gem to RubyGems via Trusted Publishing.
+
 ---
 
 ## License

@@ -1,0 +1,43 @@
+# Publishes the gem to RubyGems when a GitHub release is published.
+#
+# Auth uses RubyGems Trusted Publishing (OIDC): no API key is stored in GitHub.
+# The trusted publisher is configured on rubygems.org for repository
+# gorban-dev/rustore-fastlane-plugin and workflow release.yml.
+name: Publish gem
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Run specs
+        run: bundle exec rspec
+
+      - name: Check that the tag matches the gem version
+        run: |
+          version=$(ruby -Ilib -e 'require "fastlane/plugin/rustore_publish/version"; print Fastlane::RustorePublish::VERSION')
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Release tag $GITHUB_REF_NAME does not match gem version $version"
+            exit 1
+          fi
+
+      - uses: rubygems/configure-rubygems-credentials@v1.0.0
+
+      - name: Build and push
+        run: |
+          gem build fastlane-plugin-rustore_publish.gemspec
+          gem push fastlane-plugin-rustore_publish-*.gem
