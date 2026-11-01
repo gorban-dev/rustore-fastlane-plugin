@@ -129,6 +129,7 @@ First release published to RubyGems; no behaviour changes since 0.3.0.
   AAB and HMS APK, submit for moderation. Multi-file versions, staged rollout,
   scheduled releases, GitLab CI collapsible log sections.
 
+[0.3.2]: https://github.com/gorban-dev/rustore-fastlane-plugin/releases/tag/v0.3.2
 [0.3.1]: https://github.com/gorban-dev/rustore-fastlane-plugin/releases/tag/v0.3.1
 [0.3.0]: https://github.com/gorban-dev/rustore-fastlane-plugin/releases/tag/v0.3.0
 [0.2.0]: https://github.com/gorban-dev/rustore-fastlane-plugin/releases/tag/v0.2.0
