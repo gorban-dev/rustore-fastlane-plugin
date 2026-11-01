@@ -25,6 +25,17 @@ module Fastlane
       SERVICES_TYPE_UNKNOWN = "Unknown"
       SERVICES_TYPE_HMS     = "HMS"
 
+      # Raised by #list_versions when RuStore answers 404. The caller decides
+      # whether that is a failure; the check is by HTTP status, not by text.
+      class NotFoundError < StandardError
+        attr_reader :path
+
+        def initialize(path)
+          @path = path
+          super("RuStore returned 404 for #{path}")
+        end
+      end
+
       def initialize(auth:, logger: nil, upload_timeout: DEFAULT_UPLOAD_TIMEOUT, wait_log_interval: WAIT_LOG_INTERVAL)
         @auth              = auth
         @logger            = logger || RustoreLogger.new
@@ -65,6 +76,17 @@ module Fastlane
         resp = get("application/#{package_name}/version?versionStatuses=DRAFT")
         versions = resp.dig("body", "content") || resp["body"] || []
         versions.find { |v| v["versionStatus"] == "DRAFT" }
+      end
+
+      # GET /application/{package}/version?page=0&size={page_size}
+      # Reads the first page of the app's versions.
+      #
+      # @return [Array<Hash>] versions as RuStore returns them, [] if there are none
+      # @raise [NotFoundError] on HTTP 404
+      def list_versions(package_name:, page_size: 20)
+        resp = get("application/#{package_name}/version?page=0&size=#{page_size}", raise_not_found: true)
+        versions = resp.dig("body", "content")
+        versions.is_a?(Array) ? versions : []
       end
 
       # DELETE /application/{package}/version/{versionId}
@@ -122,10 +144,12 @@ module Fastlane
 
       # ── HTTP Helpers ─────────────────────────────────────────────────────────
 
-      def get(path)
+      def get(path, raise_not_found: false)
         resp = with_network_errors(path) do
           @conn.get(path) { |r| r.headers["Public-Token"] = @auth.token }
         end
+        raise NotFoundError, path if raise_not_found && resp.status == 404
+
         handle_response(resp, path)
       end
 

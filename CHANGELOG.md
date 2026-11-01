@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] — 2026-11-01
+
+### Added
+
+- `rustore_check` action: a dry run that gets a token and reads the app's
+  versions, logging up to 5 latest. Uploads nothing and does not touch drafts.
+  HTTP 404 on the version list counts as success (the versions API opens after
+  the first publication from RuStore Console). Returns the versions Array.
+- `RustoreClient#list_versions(package_name:, page_size: 20)` — first page of
+  `GET application/{package}/version`; raises `RustoreClient::NotFoundError`
+  on HTTP 404.
+- A blank or missing private key in `rustore_check` fails with
+  `RuStore: private_key или private_key_path не задан` before any request.
+
+### Changed
+
+- `key_id`, `private_key`, `private_key_path` and `package_name` options moved
+  to `RustoreOptions.credentials`, shared by both actions. No behaviour change
+  for `rustore_upload`.
+
 ## [0.3.1] — 2026-10-30
 
 First release published to RubyGems; no behaviour changes since 0.3.0.

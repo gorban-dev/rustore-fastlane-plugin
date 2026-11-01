@@ -240,6 +240,62 @@ RSpec.describe Fastlane::RustorePublish::RustoreClient do
     end
   end
 
+  describe "#list_versions" do
+    let(:versions_url) { api_url("application/#{TEST_PACKAGE}/version?page=0&size=20") }
+
+    it "returns the versions from body.content" do
+      versions = [{ "versionId" => 2, "versionStatus" => "ACTIVE" }, { "versionId" => 1, "versionStatus" => "PREVIOUS_ACTIVE" }]
+      stub_request(:get, versions_url)
+        .to_return(status: 200, body: JSON.generate({ code: "OK", body: { content: versions } }),
+                   headers: { "Content-Type" => "application/json" })
+
+      expect(client.list_versions(package_name: TEST_PACKAGE)).to eq(versions)
+      expect(WebMock).to have_requested(:get, versions_url).with(headers: { "Public-Token" => TEST_JWE_TOKEN })
+    end
+
+    it "returns [] when there are no versions" do
+      stub_request(:get, versions_url)
+        .to_return(status: 200, body: JSON.generate({ code: "OK", body: { content: [] } }),
+                   headers: { "Content-Type" => "application/json" })
+
+      expect(client.list_versions(package_name: TEST_PACKAGE)).to eq([])
+    end
+
+    it "returns [] when body has no content array" do
+      stub_request(:get, versions_url)
+        .to_return(status: 200, body: JSON.generate({ code: "OK", body: nil }),
+                   headers: { "Content-Type" => "application/json" })
+
+      expect(client.list_versions(package_name: TEST_PACKAGE)).to eq([])
+    end
+
+    it "raises NotFoundError on 404 whatever the message text" do
+      stub_request(:get, versions_url)
+        .to_return(status: 404, body: JSON.generate({ message: "Приложение не найдено" }),
+                   headers: { "Content-Type" => "application/json" })
+
+      expect { client.list_versions(package_name: TEST_PACKAGE) }
+        .to raise_error(described_class::NotFoundError)
+    end
+
+    it "fails through the logger on 401" do
+      stub_request(:get, versions_url)
+        .to_return(status: 401, body: JSON.generate({ message: "Unauthorized" }),
+                   headers: { "Content-Type" => "application/json" })
+
+      expect { client.list_versions(package_name: TEST_PACKAGE) }
+        .to raise_error(FastlaneCore::Interface::FastlaneError, /\[401\].*check key_id and private_key/m)
+    end
+
+    it "uses page_size" do
+      stub_request(:get, api_url("application/#{TEST_PACKAGE}/version?page=0&size=5"))
+        .to_return(status: 200, body: JSON.generate({ code: "OK", body: { content: [] } }),
+                   headers: { "Content-Type" => "application/json" })
+
+      expect(client.list_versions(package_name: TEST_PACKAGE, page_size: 5)).to eq([])
+    end
+  end
+
   describe "network errors" do
     let(:drafts_url) { api_url("application/#{TEST_PACKAGE}/version?versionStatuses=DRAFT") }
 
