@@ -2,6 +2,7 @@ require "fastlane/action"
 require_relative "../helper/rustore_auth"
 require_relative "../helper/rustore_client"
 require_relative "../helper/rustore_logger"
+require_relative "../helper/rustore_options"
 
 module Fastlane
   module Actions
@@ -173,41 +174,7 @@ module Fastlane
       # ── Parameter definitions ────────────────────────────────────────────────
 
       def self.available_options
-        [
-          # ── Authentication ─────────────────────────────────────────────────
-          FastlaneCore::ConfigItem.new(
-            key:         :key_id,
-            env_name:    "RUSTORE_KEY_ID",
-            description: "API key ID from RuStore Console → Company → API RuStore",
-            type:        String,
-            optional:    false
-          ),
-          FastlaneCore::ConfigItem.new(
-            key:         :private_key_path,
-            env_name:    "RUSTORE_PRIVATE_KEY_PATH",
-            description: "Path to RSA private key PEM file (mutually exclusive with private_key)",
-            type:        String,
-            optional:    true,
-            verify_block: proc { |v| UI.user_error!("private_key_path file not found: #{v}") unless File.exist?(v) }
-          ),
-          FastlaneCore::ConfigItem.new(
-            key:         :private_key,
-            env_name:    "RUSTORE_PRIVATE_KEY",
-            description: "RSA private key PEM content (mutually exclusive with private_key_path)",
-            type:        String,
-            optional:    true,
-            sensitive:   true
-          ),
-
-          # ── App identity ───────────────────────────────────────────────────
-          FastlaneCore::ConfigItem.new(
-            key:         :package_name,
-            env_name:    "RUSTORE_PACKAGE_NAME",
-            description: "Application package name (e.g. com.example.app)",
-            type:        String,
-            optional:    false
-          ),
-
+        RustorePublish::RustoreOptions.credentials + [
           # ── Build files ────────────────────────────────────────────────────
           FastlaneCore::ConfigItem.new(
             key:         :aab_path,

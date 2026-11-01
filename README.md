@@ -9,7 +9,7 @@
 
 Fastlane plugin for publishing Android applications to [RuStore](https://rustore.ru) — the Russian app store — via the [RuStore Public API](https://www.rustore.ru/help/work-with-rustore-api/api-upload-publication-app). Uses the new `public-api-m.rustore.ru` domain with the Russian Trusted Root CA bundled, so nothing has to be installed on the runner.
 
-Gem: `fastlane-plugin-rustore_publish` · Action: `rustore_upload`
+Gem: `fastlane-plugin-rustore_publish` · Actions: `rustore_upload`, `rustore_check`
 
 ## Quick start
 
@@ -35,6 +35,8 @@ The key comes from RuStore Console → Company → API RuStore, see [Setup](#set
 ## По-русски
 
 Плагин fastlane для публикации Android-приложений в RuStore из CI: создаёт черновик, загружает AAB и HMS APK, отправляет на модерацию. Работает через новый домен `public-api-m.rustore.ru`, на который RuStore переводит Public API; корневой сертификат Минцифры уже внутри плагина, ставить его на раннер не нужно. В логах CI видно, сколько шла отправка файла и сколько RuStore его проверял, а ошибки (таймаут, TLS, 504, новые чувствительные разрешения) приходят с подсказкой, что делать.
+
+Для пробного прогона без выкладки есть `rustore_check`: получает токен и показывает последние версии приложения, ничего не загружая; 404 на списке версий считается успехом (ключ рабочий, версий через API пока нет).
 
 Установка — `fastlane add_plugin rustore_publish`, пример — в [Quick start](#quick-start) выше. Вопросы и баги — в [Issues](https://github.com/gorban-dev/rustore-fastlane-plugin/issues), можно на русском.
 
@@ -250,6 +252,39 @@ end
 
 ---
 
+## Check access (`rustore_check`)
+
+A dry run for CI: gets a token, reads the first page of the app's versions and logs up to 5 latest of them. Creates, deletes and uploads nothing, and does not touch drafts. Use it to verify that the key in CI works and covers the package before a real release.
+
+```ruby
+lane :check_rustore do
+  rustore_check(
+    package_name: "com.example.app",
+    key_id:       ENV["RUSTORE_KEY_ID"],
+    private_key:  ENV["RUSTORE_PRIVATE_KEY"]  # or private_key_path:
+  )
+end
+```
+
+```
+[RuStore] ✓ JWE token obtained
+[RuStore] versionId=1234 versionName=2.4.0 versionCode=240 versionStatus=ACTIVE
+[RuStore] versionId=1201 versionName=2.3.1 versionCode=231 versionStatus=PREVIOUS_ACTIVE
+[RuStore] ✓ RuStore OK — ключ рабочий, версий: 2
+```
+
+| Result | Behaviour |
+|---|---|
+| Versions found | Logs up to 5 latest, returns the Array of version Hashes |
+| Empty list | Success, returns `[]` |
+| HTTP 404 on the version list | Success: the key is valid and covers the package, but RuStore opens the versions API only after the first publication from RuStore Console. Returns `[]` |
+| `private_key` and `private_key_path` both missing or blank | Fails before any request: `RuStore: private_key или private_key_path не задан` |
+| Auth error, 401/403, 5xx, network | Fails with a hint, like `rustore_upload` |
+
+The 404 case is detected by HTTP status, not by message text.
+
+---
+
 ## CI/CD integration
 
 ### GitLab CI
@@ -296,6 +331,28 @@ lane :deploy_rustore do
     aab_path:         "app/build/outputs/bundle/gmsRelease/app-gms-release.aab",
     hms_apk_path:     "app/build/outputs/apk/hmsRelease/app-hms-release.apk",
     publish_type:     "INSTANTLY"
+  )
+end
+```
+
+**Checking the key without a release.** A manual job that runs `rustore_check`, e.g. after rotating the key:
+
+```yaml
+check_rustore:
+  stage: deploy
+  script:
+    - bundle exec fastlane check_rustore
+  rules:
+    - when: manual
+```
+
+```ruby
+# fastlane/Fastfile
+lane :check_rustore do
+  rustore_check(
+    package_name:     "com.example.app",
+    key_id:           ENV["RUSTORE_KEY_ID"],
+    private_key_path: ENV["RUSTORE_PRIVATE_KEY"]
   )
 end
 ```

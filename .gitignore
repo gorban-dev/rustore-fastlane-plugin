@@ -88,3 +88,6 @@ fastlane/test_output/
 
 # gor-mobile scratch workspace (specs, plans)
 .gor-mobile/
+
+# Playwright MCP snapshots and console logs
+.playwright-mcp/
